@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function () {
+        const saved = localStorage.getItem('theme');
+        document.documentElement.setAttribute('data-theme', saved ?? 'dark');
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="Diffie–Hellman and the man in the middle — live, hand-rolled DH key exchange over Z_p* with a working discrete-log break on toy primes, an active MITM that gives Alice and Bob two different secrets, and a real WebCrypto ECDSA signature that detects the attack."
+    />
+    <title>Diffie–Hellman &amp; the Man in the Middle — crypto-lab</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#app">Skip to content</a>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

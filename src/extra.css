@@ -1,0 +1,449 @@
+/* extra.css — classes specific to this demo, all styled in terms of the
+ * variables defined in style.css so both themes are covered automatically.
+ *
+ * Governing rule for colour: it tracks SYSTEM INTEGRITY, not the raw return
+ * value. A MITM that "succeeds" is an ALARM (red), never a green success.
+ * State is never colour alone — every status pairs an icon + text + colour.
+ */
+
+/* ---- status line (icon + text + colour) ---------------------------------- */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+.status::before {
+  font-size: 1.05em;
+}
+
+.status--ok {
+  color: var(--ok);
+}
+.status--ok::before {
+  content: '✅';
+}
+
+.status--alarm {
+  color: var(--alarm);
+}
+.status--alarm::before {
+  content: '🚨';
+}
+
+.status--info {
+  color: var(--accent);
+}
+.status--info::before {
+  content: 'ℹ️';
+}
+
+/* ---- result rows --------------------------------------------------------- */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) 1fr;
+  gap: 8px 16px;
+  margin-top: 14px;
+  align-items: baseline;
+}
+
+.kv dt {
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.kv dt {
+  min-width: 0;
+}
+
+.kv dd {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+  color: var(--ink-strong);
+}
+
+@media (max-width: 440px) {
+  .kv {
+    grid-template-columns: 1fr;
+    gap: 4px 0;
+  }
+  .kv dd {
+    margin-bottom: 6px;
+  }
+}
+
+/* ---- threat chips -------------------------------------------------------- */
+
+.threat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.threat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid var(--line);
+}
+
+.threat-chip--yes {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.threat-chip--no {
+  color: var(--alarm);
+  border-color: color-mix(in srgb, var(--alarm) 40%, transparent);
+  background: color-mix(in srgb, var(--alarm) 12%, transparent);
+}
+
+/* ---- toy-parameters banner ----------------------------------------------- */
+
+.toy-banner {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.toy-banner-tag {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+}
+
+/* ---- the three-party wire (Alice | Mallory | Bob) ------------------------ */
+
+.wire {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 20px;
+}
+
+.party {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-strong);
+}
+
+.party--alice {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.party--bob {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.party--mallory {
+  border-color: color-mix(in srgb, var(--mallory) 60%, transparent);
+  background: color-mix(in srgb, var(--mallory) 9%, var(--panel-strong));
+}
+
+.party h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--ink-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party--mallory h4 {
+  color: var(--mallory);
+}
+
+.party .role {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.wire-gap {
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  min-width: 56px;
+}
+
+.wire-gap .arrow {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.wire-gap--cut .arrow {
+  color: var(--alarm);
+}
+
+@media (max-width: 760px) {
+  .wire {
+    grid-template-columns: 1fr;
+  }
+  .wire-gap {
+    transform: rotate(90deg);
+    padding: 4px 0;
+  }
+}
+
+/* ---- key cards (the punchline) ------------------------------------------- */
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.key-card {
+  padding: 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-strong);
+}
+
+.key-card .key-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.key-card .key-value {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+
+.key-card--alarm {
+  border-color: color-mix(in srgb, var(--alarm) 55%, transparent);
+  background: color-mix(in srgb, var(--alarm) 10%, var(--panel-strong));
+}
+
+.key-card--ok {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, var(--panel-strong));
+}
+
+/* ---- step list ----------------------------------------------------------- */
+
+.steps {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-strong);
+  line-height: 1.55;
+}
+
+.steps li .n {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a1206;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.steps li.is-cut .n {
+  background: var(--mallory);
+  color: #fff;
+}
+
+/* ---- discrete-log cost table --------------------------------------------- */
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 16px;
+}
+
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.cost-table th,
+.cost-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.cost-table th {
+  color: var(--ink-strong);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cost-table td {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.cost-table tr.is-current td {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--ink-strong);
+}
+
+/* ---- side-by-side comparison (Part 4) ------------------------------------ */
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.compare-col {
+  padding: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-strong);
+}
+
+.compare-col--broken {
+  border-color: color-mix(in srgb, var(--alarm) 50%, transparent);
+}
+
+.compare-col--safe {
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+
+.compare-col h3 {
+  margin: 0 0 4px;
+  color: var(--ink-strong);
+}
+
+.compare-col ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- takeaways ----------------------------------------------------------- */
+
+.takeaways {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.takeaways li {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 14px 14px 0;
+  background: var(--panel-strong);
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.takeaways li b {
+  color: var(--ink-strong);
+}
+
+/* ---- related demos ------------------------------------------------------- */
+
+.related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.related a {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.related a:hover {
+  border-color: var(--accent);
+}
+
+/* ---- copy chip ----------------------------------------------------------- */
+
+.copy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.copy-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.copy-chip--ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
