@@ -94,6 +94,35 @@ function toyBanner(detail: string): string {
 	return `<div class="toy-banner" role="note"><span class="toy-banner-tag">Toy params</span><span>${detail}</span></div>`;
 }
 
+// Inline SVG horizontal-bar chart of the discrete-log work factor (log2 of the
+// ~√p baby-step giant-step cost) for each preset. Pure SVG, no dependency; the
+// realistic group's bar runs off the scale of the toy ones, which is the point.
+function renderDifficultyChart(): string {
+	const data = PRESETS.map((pr) => ({ label: pr.label.split(' — ')[0]!, ...discreteLogCost(pr.p) }));
+	const maxWork = Math.max(...data.map((d) => d.approxLog2Steps));
+	const W = 680, rowH = 46, barH = 22, x0 = 150, barFull = 470;
+	const H = data.length * rowH + 16;
+	const rows = data
+		.map((d, i) => {
+			const y = 12 + i * rowH;
+			const len = Math.max(2, (d.approxLog2Steps / maxWork) * barFull);
+			const work = d.approxLog2Steps >= 1000 ? `≈ 2^${Math.round(d.approxLog2Steps)}` : `≈ 2^${d.approxLog2Steps.toFixed(1)}`;
+			return `
+				<text class="chart-label" x="${x0 - 12}" y="${y + barH / 2}" text-anchor="end" dominant-baseline="middle">${escapeHtml(d.label)} · ${d.bits}-bit</text>
+				<rect class="chart-bar ${d.feasibleHere ? 'chart-bar--toy' : 'chart-bar--real'}" x="${x0}" y="${y}" width="${len.toFixed(1)}" height="${barH}" rx="5"></rect>
+				<text class="chart-value" x="${x0 + len + 8}" y="${y + barH / 2}" dominant-baseline="middle">${work} steps</text>`;
+		})
+		.join('');
+	return `
+		<figure class="chart-figure">
+			<figcaption>Brute-force discrete-log work by modulus size (bar = log₂ of ≈√p steps)</figcaption>
+			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart: discrete-log break cost is about 2^2.5 steps for the 5-bit prime, 2^5.5 for 12-bit, 2^9.5 for 20-bit, and about 2^1023 for the realistic 2048-bit group.">
+				${rows}
+			</svg>
+			<p class="muted" style="margin-top:4px">Each extra bit of the modulus roughly doubles the work (cost ≈ √p). The toy bars are slivers next to the 2048-bit group, whose ~2<sup>1023</sup> operations exceed the number of atoms in the observable universe — that gap is the security.</p>
+		</figure>`;
+}
+
 // Clamp a typed exponent into [1, p-2]; fall back if unparseable.
 function parseExponent(raw: string, p: bigint, fallback: bigint): bigint {
 	try {
@@ -117,6 +146,7 @@ function defaultExponents(preset: DhPreset): { a: bigint; b: bigint } {
 
 function renderHero(): HTMLElement {
 	const section = el('header', 'hero-panel');
+	section.id = 'overview';
 	section.setAttribute('role', 'banner');
 	const demo = diffieHellman(23n, 5n, 6n, 15n);
 	section.innerHTML = `
@@ -192,6 +222,10 @@ function renderPassive(): HTMLElement {
 		</div>
 		<div id="p-toy">${toyBanner(escapeHtml(preset.note))}</div>
 		<div id="p-out" class="panel-card" style="margin-top:18px" aria-live="polite"></div>
+		<div class="panel-card" style="margin-top:18px">
+			<h3>How fast the wall goes up</h3>
+			${renderDifficultyChart()}
+		</div>
 	`;
 
 	const selPreset = section.querySelector<HTMLSelectElement>('#p-preset')!;
@@ -319,8 +353,24 @@ function renderMitm(): HTMLElement {
 			<button class="btn btn--danger" id="m-run" type="button">Run the attack</button>
 		</div>
 		<div id="m-toy">${toyBanner('Mallory needs no secret-breaking and no big computation — just the ability to alter messages. That is what makes the active attack so much stronger than eavesdropping.')}</div>
+		<div class="stepper" id="m-stepper" role="group" aria-label="Attack walkthrough controls">
+			<button class="btn btn--ghost" id="m-prev" type="button" aria-label="Previous step">◀ Prev</button>
+			<span class="stepper-label" id="m-steplabel" aria-live="polite">Step 1 of 6</span>
+			<button class="btn btn--ghost" id="m-next" type="button" aria-label="Next step">Next ▶</button>
+			<button class="btn btn--ghost" id="m-all" type="button">Show all ⏭</button>
+		</div>
 		<div id="m-out" aria-live="polite"></div>
 	`;
+
+	const STEP_COUNT = 6;
+	const STEP_TEXT: { cut: boolean; html: string }[] = [
+		{ cut: false, html: 'Alice sends <code>A = gᵃ</code> toward Bob. Mallory intercepts it — Bob never sees it.' },
+		{ cut: true, html: "Mallory sends Alice her own <code>M₁ = g<sup>m₁</sup></code>, pretending it's Bob's value." },
+		{ cut: false, html: 'Bob sends <code>B = gᵇ</code> toward Alice. Mallory intercepts that too.' },
+		{ cut: true, html: "Mallory sends Bob her own <code>M₂ = g<sup>m₂</sup></code>, pretending it's Alice's value." },
+		{ cut: false, html: 'Alice computes <code>M₁ᵃ</code>; Mallory computes <code>A<sup>m₁</sup></code> — the same number. They share a key.' },
+		{ cut: false, html: 'Bob computes <code>M₂ᵇ</code>; Mallory computes <code>B<sup>m₂</sup></code> — the same number. They share a different key.' },
+	];
 
 	const selPreset = section.querySelector<HTMLSelectElement>('#m-preset')!;
 	const inA = section.querySelector<HTMLInputElement>('#m-a')!;
@@ -328,6 +378,86 @@ function renderMitm(): HTMLElement {
 	const inM1 = section.querySelector<HTMLInputElement>('#m-m1')!;
 	const inM2 = section.querySelector<HTMLInputElement>('#m-m2')!;
 	const out = section.querySelector<HTMLDivElement>('#m-out')!;
+	const prevBtn = section.querySelector<HTMLButtonElement>('#m-prev')!;
+	const nextBtn = section.querySelector<HTMLButtonElement>('#m-next')!;
+	const allBtn = section.querySelector<HTMLButtonElement>('#m-all')!;
+	const stepLabel = section.querySelector<HTMLSpanElement>('#m-steplabel')!;
+
+	let current = mitm(preset.p, preset.g, a, b, m1, m2);
+	let revealStep = STEP_COUNT;
+
+	function paint(): void {
+		const r = current;
+		const split = !r.aliceAndBobShareKey;
+		const done = revealStep >= STEP_COUNT;
+		const steps = STEP_TEXT.map((s, i) => {
+			const n = i + 1;
+			const hidden = n > revealStep ? ' is-hidden' : '';
+			const active = n === revealStep ? ' is-active' : '';
+			return `<li class="${s.cut ? 'is-cut' : ''}${hidden}${active}"><span class="n">${n}</span><span>${s.html}</span></li>`;
+		}).join('');
+
+		out.innerHTML = `
+			<div class="wire">
+				<div class="party party--alice">
+					<h4>👩 Alice</h4>
+					<span class="role">thinks she's talking to Bob</span>
+					<dl class="kv">
+						<dt>sends A</dt><dd>${shortValue(r.A)}</dd>
+						<dt>receives</dt><dd>${revealStep >= 2 ? `${shortValue(r.M1)} <span class="muted">(Mallory's, not Bob's)</span>` : '<span class="muted">…awaiting</span>'}</dd>
+						<dt>her key M₁ᵃ</dt><dd>${revealStep >= 5 ? shortValue(r.aliceKey) : '<span class="muted">…</span>'}</dd>
+					</dl>
+				</div>
+				<div class="wire-gap wire-gap--cut"><span class="arrow">⇢✂</span>cut</div>
+				<div class="party party--mallory">
+					<h4>🦹 Mallory</h4>
+					<span class="role">relays both sides, reads everything</span>
+					<dl class="kv">
+						<dt>Aᵐ¹ (= Alice's)</dt><dd>${revealStep >= 5 ? shortValue(r.malloryKeyWithAlice) : '<span class="muted">…</span>'}</dd>
+						<dt>Bᵐ² (= Bob's)</dt><dd>${done ? shortValue(r.malloryKeyWithBob) : '<span class="muted">…</span>'}</dd>
+					</dl>
+				</div>
+				<div class="wire-gap wire-gap--cut"><span class="arrow">✂⇠</span>cut</div>
+				<div class="party party--bob">
+					<h4>🧑 Bob</h4>
+					<span class="role">thinks he's talking to Alice</span>
+					<dl class="kv">
+						<dt>sends B</dt><dd>${revealStep >= 3 ? shortValue(r.B) : '<span class="muted">…awaiting</span>'}</dd>
+						<dt>receives</dt><dd>${revealStep >= 4 ? `${shortValue(r.M2)} <span class="muted">(Mallory's, not Alice's)</span>` : '<span class="muted">…</span>'}</dd>
+						<dt>his key M₂ᵇ</dt><dd>${done ? shortValue(r.bobKey) : '<span class="muted">…</span>'}</dd>
+					</dl>
+				</div>
+			</div>
+
+			<ol class="steps">${steps}</ol>
+
+			${
+				done
+					? `<div class="key-grid">
+							<div class="key-card ${split ? 'key-card--alarm' : 'key-card--ok'}">
+								<div class="key-label">👩 Alice's "shared" key</div>
+								<div class="key-value">${shortValue(r.aliceKey)}</div>
+							</div>
+							<div class="key-card ${split ? 'key-card--alarm' : 'key-card--ok'}">
+								<div class="key-label">🧑 Bob's "shared" key</div>
+								<div class="key-value">${shortValue(r.bobKey)}</div>
+							</div>
+						</div>
+						<p class="status ${split ? 'status--alarm' : 'status--info'}">
+							${
+								split
+									? `Attack succeeded: Alice's key ≠ Bob's key. There is no Alice–Bob secret — only an Alice–Mallory key and a Bob–Mallory key. Mallory decrypts, reads, optionally edits, and re-encrypts every message. Neither side can tell.`
+									: `With these exponents the two keys happened to collide; change m₁ or m₂ to see them split.`
+							}
+						</p>
+						<p class="muted" style="margin-top:6px">Notice what Mallory did <em>not</em> need: she never solved a discrete log or broke any math. She only needed to sit on the wire and swap two values. Authentication — not bigger numbers — is what stops her (Part 4).</p>`
+					: `<p class="status status--info">Walk through the steps to watch the two keys form. Press <b>Next ▶</b> (or <b>Show all</b>).</p>`
+			}
+		`;
+		stepLabel.textContent = `Step ${revealStep} of ${STEP_COUNT}`;
+		prevBtn.disabled = revealStep <= 1;
+		nextBtn.disabled = revealStep >= STEP_COUNT;
+	}
 
 	function run(): void {
 		a = parseExponent(inA.value, preset.p, a);
@@ -338,71 +468,9 @@ function renderMitm(): HTMLElement {
 		inB.value = b.toString();
 		inM1.value = m1.toString();
 		inM2.value = m2.toString();
-
-		const r = mitm(preset.p, preset.g, a, b, m1, m2);
-		const split = !r.aliceAndBobShareKey;
-
-		out.innerHTML = `
-			<div class="wire">
-				<div class="party party--alice">
-					<h4>👩 Alice</h4>
-					<span class="role">thinks she's talking to Bob</span>
-					<dl class="kv">
-						<dt>sends A</dt><dd>${shortValue(r.A)}</dd>
-						<dt>receives</dt><dd>${shortValue(r.M1)} <span class="muted">(Mallory's, not Bob's)</span></dd>
-						<dt>her key M₁ᵃ</dt><dd>${shortValue(r.aliceKey)}</dd>
-					</dl>
-				</div>
-				<div class="wire-gap wire-gap--cut"><span class="arrow">⇢✂</span>cut</div>
-				<div class="party party--mallory">
-					<h4>🦹 Mallory</h4>
-					<span class="role">relays both sides, reads everything</span>
-					<dl class="kv">
-						<dt>Aᵐ¹ (= Alice's)</dt><dd>${shortValue(r.malloryKeyWithAlice)}</dd>
-						<dt>Bᵐ² (= Bob's)</dt><dd>${shortValue(r.malloryKeyWithBob)}</dd>
-					</dl>
-				</div>
-				<div class="wire-gap wire-gap--cut"><span class="arrow">✂⇠</span>cut</div>
-				<div class="party party--bob">
-					<h4>🧑 Bob</h4>
-					<span class="role">thinks he's talking to Alice</span>
-					<dl class="kv">
-						<dt>sends B</dt><dd>${shortValue(r.B)}</dd>
-						<dt>receives</dt><dd>${shortValue(r.M2)} <span class="muted">(Mallory's, not Alice's)</span></dd>
-						<dt>his key M₂ᵇ</dt><dd>${shortValue(r.bobKey)}</dd>
-					</dl>
-				</div>
-			</div>
-
-			<ol class="steps">
-				<li><span class="n">1</span><span>Alice sends <code>A = gᵃ</code> toward Bob. Mallory intercepts it — Bob never sees it.</span></li>
-				<li class="is-cut"><span class="n">2</span><span>Mallory sends Alice her own <code>M₁ = g<sup>m₁</sup></code>, pretending it's Bob's value.</span></li>
-				<li><span class="n">3</span><span>Bob sends <code>B = gᵇ</code> toward Alice. Mallory intercepts that too.</span></li>
-				<li class="is-cut"><span class="n">4</span><span>Mallory sends Bob her own <code>M₂ = g<sup>m₂</sup></code>, pretending it's Alice's value.</span></li>
-				<li><span class="n">5</span><span>Alice computes <code>M₁ᵃ</code>; Mallory computes <code>A<sup>m₁</sup></code> — the same number. They share a key.</span></li>
-				<li><span class="n">6</span><span>Bob computes <code>M₂ᵇ</code>; Mallory computes <code>B<sup>m₂</sup></code> — the same number. They share a different key.</span></li>
-			</ol>
-
-			<div class="key-grid">
-				<div class="key-card ${split ? 'key-card--alarm' : 'key-card--ok'}">
-					<div class="key-label">👩 Alice's "shared" key</div>
-					<div class="key-value">${shortValue(r.aliceKey)}</div>
-				</div>
-				<div class="key-card ${split ? 'key-card--alarm' : 'key-card--ok'}">
-					<div class="key-label">🧑 Bob's "shared" key</div>
-					<div class="key-value">${shortValue(r.bobKey)}</div>
-				</div>
-			</div>
-
-			<p class="status ${split ? 'status--alarm' : 'status--info'}">
-				${
-					split
-						? `Attack succeeded: Alice's key ≠ Bob's key. There is no Alice–Bob secret — only an Alice–Mallory key and a Bob–Mallory key. Mallory decrypts, reads, optionally edits, and re-encrypts every message. Neither side can tell.`
-						: `With these exponents the two keys happened to collide; change m₁ or m₂ to see them split.`
-				}
-			</p>
-			<p class="muted" style="margin-top:6px">Notice what Mallory did <em>not</em> need: she never solved a discrete log or broke any math. She only needed to sit on the wire and swap two values. Authentication — not bigger numbers — is what stops her (Part 4).</p>
-		`;
+		current = mitm(preset.p, preset.g, a, b, m1, m2);
+		revealStep = 1; // start the walkthrough from the top
+		paint();
 	}
 
 	selPreset.addEventListener('change', () => {
@@ -415,8 +483,11 @@ function renderMitm(): HTMLElement {
 		run();
 	});
 	section.querySelector<HTMLButtonElement>('#m-run')!.addEventListener('click', run);
+	prevBtn.addEventListener('click', () => { revealStep = Math.max(1, revealStep - 1); paint(); });
+	nextBtn.addEventListener('click', () => { revealStep = Math.min(STEP_COUNT, revealStep + 1); paint(); });
+	allBtn.addEventListener('click', () => { revealStep = STEP_COUNT; paint(); });
 
-	run();
+	paint(); // initial render shows the full picture; "Run the attack" restarts the walkthrough
 	return section;
 }
 
@@ -481,35 +552,37 @@ function renderCompare(): HTMLElement {
 	const out = section.querySelector<HTMLDivElement>('#f-out')!;
 
 	async function runSigned(tamper: boolean): Promise<void> {
-		out.innerHTML = `<p class="muted">Generating ECDSA identity and signing…</p>`;
+		out.innerHTML = `<p class="muted">Generating ECDSA identity and signing the transcript…</p>`;
 		const p = 2357n;
 		const g = 2n;
-		const aliceValue = modPow(g, 1751n, p); // Alice's real A = g^a
-		const malloryValue = modPow(g, 333n, p); // what Mallory would substitute
-		const delivered = tamper ? malloryValue : aliceValue;
+		const aliceShare = modPow(g, 1751n, p); // Alice's real A = g^a
+		const bobShare = modPow(g, 998n, p); // Bob's B = g^b, bound into the transcript
+		const malloryShare = modPow(g, 333n, p); // what Mallory would substitute for A
+		const delivered = tamper ? malloryShare : aliceShare;
 
 		const alice = await generateIdentity('Alice');
-		const res = await authenticatedDeliver(alice, aliceValue, delivered);
+		const res = await authenticatedDeliver(alice, aliceShare, bobShare, delivered);
 
 		out.innerHTML = `
-			<h3>${tamper ? '🦹 Mallory tampers with the signed value' : '✅ Honest signed delivery'}</h3>
+			<h3>${tamper ? '🦹 Mallory tampers with the signed handshake' : '✅ Honest signed handshake'}</h3>
 			<dl class="kv">
-				<dt>Value Alice signed</dt><dd>${shortValue(res.signedValue)}</dd>
-				<dt>Value Bob received</dt><dd>${shortValue(res.deliveredValue)}${res.tampered ? ' <span class="muted">(swapped by Mallory)</span>' : ''}</dd>
-				<dt>Signature scheme</dt><dd style="font-family:var(--sans)">ECDSA · P-256 · SHA-256 (WebCrypto)</dd>
+				<dt>Transcript Alice signed</dt><dd>signer=Alice · self=A=${shortValue(res.signerSelf)} · peer=B=${shortValue(res.signerPeer)}</dd>
+				<dt>Transcript Bob verifies</dt><dd>signer=Alice · self=${shortValue(res.deliveredSelf)}${res.tampered ? ' <span class="muted">(A swapped by Mallory)</span>' : ''} · peer=B=${shortValue(res.signerPeer)}</dd>
+				<dt>Signature scheme</dt><dd style="font-family:var(--sans)">ECDSA · P-256 · SHA-256 (WebCrypto), over identity + both shares</dd>
 				<dt>Bob's verify()</dt><dd>${res.verified ? 'true' : 'false'}</dd>
 				<dt>Bob proceeds?</dt><dd>${res.accepted ? 'yes' : 'no — aborted'}</dd>
 			</dl>
 			<p class="status ${res.accepted ? 'status--ok' : res.mitmDetected ? 'status--ok' : 'status--alarm'}">
 				${
 					res.mitmDetected
-						? 'Signature check failed on the swapped value — the man-in-the-middle is detected and the handshake aborts. The same swap that broke Part 3 is now caught.'
+						? 'The transcript Bob verifies (self = Mallory’s value) is not the one Alice signed — verification fails, the man-in-the-middle is detected, and the handshake aborts. The same swap that broke Part 3 is now caught.'
 						: res.accepted
-							? 'Signature verifies — Bob accepts Alice’s authentic value and the exchange continues safely.'
+							? 'Signature verifies — Bob accepts Alice’s authentic share and the exchange continues safely.'
 							: 'Unexpected state.'
 				}
 			</p>
-			<p class="muted" style="margin-top:6px">${tamper ? 'Mallory can still copy Alice’s real value, but then she doesn’t control the key. To control it she must change the value — and she can’t forge Alice’s signature over the new one.' : 'Now try the tamper button: the signature is over Alice’s value, so any substitution fails to verify.'}</p>
+			<p class="muted" style="margin-top:6px">${tamper ? 'Mallory could forward Alice’s real value unchanged, but then she doesn’t control the key. To control it she must change the share — and she can’t forge Alice’s signature over the new transcript.' : 'Now try the tamper button: the signature binds Alice’s identity and both shares, so any substitution fails to verify.'}</p>
+			<div class="toy-banner" role="note"><span class="toy-banner-tag">Faithful, simplified</span><span>We sign the transcript (identity + both ephemeral shares), which is what defeats the MITM and identity-misbinding. A full AKE like SIGMA also MACs the transcript under the derived key and binds the negotiated parameters — same idea, more machinery.</span></div>
 		`;
 	}
 
@@ -539,17 +612,134 @@ function renderTakeaways(): HTMLElement {
 	return section;
 }
 
+// ---------- 6. references & glossary -----------------------------------------
+
+function renderReferences(): HTMLElement {
+	const section = el('section', 'lab-section');
+	section.id = 'refs';
+	const refs: { cite: string; href: string; note: string }[] = [
+		{ cite: 'Diffie & Hellman, “New Directions in Cryptography,” IEEE Trans. Information Theory, 1976', href: 'https://ee.stanford.edu/~hellman/publications/24.pdf', note: 'The original key-exchange paper.' },
+		{ cite: 'Krawczyk, “SIGMA: the SIGn-and-MAc Approach to Authenticated Diffie–Hellman,” CRYPTO 2003', href: 'https://webee.technion.ac.il/~hugo/sigma-pdf.pdf', note: 'Why you sign the transcript and MAC it — the basis of TLS 1.3 and IKE authentication.' },
+		{ cite: 'RFC 3526 — MODP Diffie–Hellman groups (incl. the 2048-bit group 14 used here)', href: 'https://www.rfc-editor.org/rfc/rfc3526', note: 'Source of the realistic modulus in this demo.' },
+		{ cite: 'RFC 8446 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc8446', note: 'Authenticated, ephemeral (EC)DH as deployed.' },
+		{ cite: 'RFC 7748 — Elliptic Curves for Security (X25519)', href: 'https://www.rfc-editor.org/rfc/rfc7748', note: 'The modern ECDH most handshakes actually use.' },
+		{ cite: 'Adrian et al., “Imperfect Forward Secrecy: How Diffie–Hellman Fails in Practice” (Logjam), CCS 2015', href: 'https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf', note: 'What weak/shared DH parameters cost in the real world.' },
+		{ cite: 'Menezes, van Oorschot & Vanstone, Handbook of Applied Cryptography, §3.6 (baby-step giant-step) & §8.4', href: 'https://cacr.uwaterloo.ca/hac/', note: 'The discrete-log algorithm and DH worked examples used here.' },
+		{ cite: 'FIPS 186-5 — Digital Signature Standard (ECDSA)', href: 'https://csrc.nist.gov/pubs/fips/186-5/final', note: 'The P-256 ECDSA the demo signs with via WebCrypto.' },
+	];
+	const glossary: { term: string; def: string }[] = [
+		{ term: 'Discrete logarithm', def: 'Given g, p and A = gˣ mod p, recovering x. Believed hard for large p; the security DH rests on.' },
+		{ term: 'Generator / primitive root', def: 'An element g whose powers cycle through the group, so gˣ can land on every value.' },
+		{ term: 'Ephemeral key', def: 'A per-session secret exponent (a, b) discarded afterward — the source of forward secrecy.' },
+		{ term: 'Shared secret', def: 'The common value g^{ab} both parties derive but never transmit.' },
+		{ term: 'Man-in-the-middle (active attacker)', def: 'An adversary who can read AND modify messages, not just observe — Mallory here.' },
+		{ term: 'Authentication', def: 'Proving a public value really came from the claimed party (signature, certificate, or PAKE). The missing piece plain DH lacks.' },
+		{ term: 'Identity misbinding / UKS', def: 'Attacks where a signature valid in one session is replayed into another; defeated by binding both shares + identities into the signed transcript.' },
+		{ term: 'PAKE', def: 'Password-Authenticated Key Exchange — authenticates DH from a shared password instead of a certificate (e.g. OPAQUE).' },
+		{ term: 'Forward secrecy', def: 'Compromising a long-term key later does not expose past sessions, because the ephemeral exponents are gone.' },
+		{ term: 'Baby-step giant-step', def: 'A √p time/memory discrete-log algorithm — the “Break it” attack in Part 2.' },
+	];
+	section.innerHTML = `
+		<p class="section-kicker">Part 6 · References &amp; glossary</p>
+		<h2>Go deeper</h2>
+		<p class="section-intro">Every claim on this page traces to a primary source. The glossary collects the terms used above.</p>
+		<div class="reuse-grid">
+			<div class="panel-card">
+				<h3>References</h3>
+				<ol class="ref-list">
+					${refs.map((r) => `<li><a href="${r.href}" target="_blank" rel="noopener">${escapeHtml(r.cite)}</a><span class="muted"> — ${escapeHtml(r.note)}</span></li>`).join('')}
+				</ol>
+			</div>
+			<div class="panel-card">
+				<h3>Glossary</h3>
+				<dl class="glossary">
+					${glossary.map((g) => `<dt>${escapeHtml(g.term)}</dt><dd>${escapeHtml(g.def)}</dd>`).join('')}
+				</dl>
+			</div>
+		</div>
+	`;
+	return section;
+}
+
+// ---------- in-page section nav (scroll-spy) ---------------------------------
+
+const NAV_ITEMS: { id: string; label: string }[] = [
+	{ id: 'overview', label: 'Overview' },
+	{ id: 'passive', label: 'Passive' },
+	{ id: 'mitm', label: 'MITM' },
+	{ id: 'fix', label: 'The fix' },
+	{ id: 'takeaways', label: 'Takeaways' },
+	{ id: 'refs', label: 'Reference' },
+];
+
+function renderNav(): HTMLElement {
+	const nav = el('nav', 'section-nav');
+	nav.setAttribute('aria-label', 'Sections of this demo');
+	nav.innerHTML = NAV_ITEMS.map(
+		(item) => `<a href="#${item.id}" data-nav="${item.id}">${escapeHtml(item.label)}</a>`,
+	).join('');
+	return nav;
+}
+
+function wireScrollSpy(root: HTMLElement): void {
+	const links = new Map<string, HTMLAnchorElement>();
+	root.querySelectorAll<HTMLAnchorElement>('.section-nav a').forEach((a) => {
+		const id = a.dataset.nav;
+		if (id) links.set(id, a);
+	});
+	if (!('IntersectionObserver' in window) || links.size === 0) return;
+	const setCurrent = (id: string): void => {
+		links.forEach((a, key) => {
+			if (key === id) a.setAttribute('aria-current', 'true');
+			else a.removeAttribute('aria-current');
+		});
+	};
+	const visible = new Set<string>();
+	const observer = new IntersectionObserver(
+		(entries) => {
+			for (const e of entries) {
+				const id = (e.target as HTMLElement).id;
+				if (e.isIntersecting) visible.add(id);
+				else visible.delete(id);
+			}
+			// Highlight the first nav section currently in view.
+			const firstVisible = NAV_ITEMS.find((item) => visible.has(item.id));
+			if (firstVisible) setCurrent(firstVisible.id);
+		},
+		{ rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+	);
+	NAV_ITEMS.forEach((item) => {
+		const target = document.getElementById(item.id);
+		if (target) observer.observe(target);
+	});
+}
+
 // ---------- mount ------------------------------------------------------------
 
 export function mountApp(root: HTMLElement): void {
 	const shell = el('div', 'page-shell');
 	shell.append(
 		renderHero(),
+		renderNav(),
 		renderPassive(),
 		renderMitm(),
 		renderCompare(),
 		renderTakeaways(),
+		renderReferences(),
 	);
 	root.append(shell);
 	wireCopyButtons(root);
+	wireScrollSpy(root);
+
+	// Pin the in-page nav just below the always-sticky shared header, whatever
+	// its measured height is.
+	const headerEl = document.querySelector<HTMLElement>('.cl-topbar');
+	const navEl = shell.querySelector<HTMLElement>('.section-nav');
+	if (headerEl && navEl) {
+		const setOffset = (): void => {
+			document.documentElement.style.setProperty('--cl-header-h', `${headerEl.offsetHeight}px`);
+		};
+		setOffset();
+		window.addEventListener('resize', setOffset);
+	}
 }

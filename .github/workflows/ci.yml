@@ -23,3 +23,37 @@ jobs:
         run: npm run build
       - name: Engine unit tests
         run: npm test
+
+      # Headless browser + a11y checks need a real Chromium and a running
+      # preview server. Install Playwright + axe-core transiently, boot
+      # `vite preview`, wait for the port, run smoke + axe, then tear down.
+      - name: Install browser test deps
+        run: |
+          npm install --no-save --no-audit --no-fund playwright axe-core
+          npx playwright install --with-deps chromium
+
+      - name: Boot preview server
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          echo $! > preview.pid
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:4173/crypto-lab-diffie-hellman-mitm/ -o /dev/null; then
+              echo "Preview ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Preview failed to start within 30s"; exit 1
+
+      - name: Smoke test (Playwright, 3 viewports)
+        run: npm run smoke
+
+      - name: Accessibility audit (axe-core, WCAG 2.1 A/AA)
+        run: npm run axe
+
+      - name: Stop preview
+        if: always()
+        run: |
+          if [ -f preview.pid ]; then
+            kill "$(cat preview.pid)" || true
+            rm preview.pid
+          fi

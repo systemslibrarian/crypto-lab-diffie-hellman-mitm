@@ -140,22 +140,51 @@ test('mitm: the substituted values are Mallory’s, not the real ones', () => {
 test('authenticatedDeliver: clean exchange verifies and is accepted', async () => {
 	const alice = await generateIdentity('Alice');
 	const A = modPow(5n, 6n, 23n);
-	const res = await authenticatedDeliver(alice, A, A); // no tampering
+	const B = modPow(5n, 15n, 23n);
+	const res = await authenticatedDeliver(alice, A, B, A); // no tampering
 	assert.equal(res.tampered, false);
 	assert.equal(res.verified, true);
 	assert.equal(res.accepted, true);
 	assert.equal(res.mitmDetected, false);
 });
 
-test('authenticatedDeliver: a tampered value fails closed (MITM detected)', async () => {
+test('authenticatedDeliver: a tampered share fails closed (MITM detected)', async () => {
 	const alice = await generateIdentity('Alice');
 	const A = modPow(2n, 1751n, 2357n);
-	const malloryValue = modPow(2n, 333n, 2357n); // Mallory's substitute
-	const res = await authenticatedDeliver(alice, A, malloryValue);
+	const B = modPow(2n, 998n, 2357n);
+	const malloryShare = modPow(2n, 333n, 2357n); // Mallory's substitute for A
+	const res = await authenticatedDeliver(alice, A, B, malloryShare);
 	assert.equal(res.tampered, true);
-	assert.equal(res.verified, false); // signature was over A, not Mallory's value
+	assert.equal(res.verified, false); // sig bound self=A, verify used self=Mallory's
 	assert.equal(res.accepted, false); // INVARIANT: never proceed unverified
 	assert.equal(res.mitmDetected, true);
+});
+
+test('authenticatedDeliver: transcript binds the PEER share too (anti-misbinding)', async () => {
+	// A signature legitimately made in one session (peer = B) must not verify
+	// when replayed into a session with a different peer share (B' != B), even
+	// though Alice's own share A is unchanged. This is the property that signing
+	// a bare g^a lacks.
+	const alice = await generateIdentity('Alice');
+	const A = modPow(2n, 1751n, 2357n);
+	const B = modPow(2n, 998n, 2357n);
+	const otherB = modPow(2n, 1234n, 2357n);
+	const honest = await authenticatedDeliver(alice, A, B, A);
+	assert.equal(honest.verified, true);
+	// Re-sign for peer=B, but verify in a session whose peer is otherB:
+	const { transcriptBytes } = await import('../src/engine.ts');
+	const sig = await crypto.subtle.sign(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		alice.privateKey,
+		transcriptBytes('Alice', A, B),
+	);
+	const replayedOk = await crypto.subtle.verify(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		alice.publicKey,
+		sig,
+		transcriptBytes('Alice', A, otherB),
+	);
+	assert.equal(replayedOk, false); // peer share is bound — replay rejected
 });
 
 test('PRESETS: every breakable preset uses a real prime; real group is 2048-bit', () => {

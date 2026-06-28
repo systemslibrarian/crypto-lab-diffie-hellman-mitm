@@ -260,19 +260,15 @@ export function mitm(
 
 // ---------- the fix: authenticated DH (real ECDSA over WebCrypto) ------------
 
-// We sign the *ephemeral DH public value* with a long-term identity key, the
-// way SIGMA / TLS / SSH bind an unauthenticated DH share to an identity. The
-// signature is REAL P-256 ECDSA via SubtleCrypto — not a stand-in.
-
-function bigintToBytes(n: bigint): Uint8Array {
-	let hex = n.toString(16);
-	if (hex.length % 2) hex = '0' + hex;
-	const out = new Uint8Array(hex.length / 2);
-	for (let i = 0; i < out.length; i++) {
-		out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-	}
-	return out;
-}
+// Real P-256 ECDSA via SubtleCrypto — not a stand-in. The signature does NOT
+// cover a bare DH value; it covers the *handshake transcript*: the signer's
+// identity plus BOTH ephemeral shares. This is what SIGMA / TLS 1.3 / SSH do,
+// and it matters: signing only your own g^a (with the peer's share unbound)
+// is open to identity-misbinding / unknown-key-share attacks, where a
+// signature made in one session is replayed into another. Binding the peer's
+// share into the signed transcript closes that. (Real SIGMA additionally MACs
+// the transcript under the derived key; we keep the signature and call out the
+// MAC in the UI rather than implement a full AKE.)
 
 export interface IdentityKey {
 	name: string;
@@ -289,55 +285,56 @@ export async function generateIdentity(name: string): Promise<IdentityKey> {
 	return { name, publicKey: pair.publicKey, privateKey: pair.privateKey };
 }
 
-export async function signValue(id: IdentityKey, value: bigint): Promise<ArrayBuffer> {
-	return crypto.subtle.sign(
-		{ name: 'ECDSA', hash: 'SHA-256' },
-		id.privateKey,
-		bigintToBytes(value),
-	);
-}
-
-export async function verifyValue(
-	publicKey: CryptoKey,
-	value: bigint,
-	signature: ArrayBuffer,
-): Promise<boolean> {
-	return crypto.subtle.verify(
-		{ name: 'ECDSA', hash: 'SHA-256' },
-		publicKey,
-		signature,
-		bigintToBytes(value),
-	);
+// Canonical, unambiguous transcript encoding. Domain-separated and fully
+// delimited so two different (signer, self, peer) triples can never collide on
+// the same byte string.
+export function transcriptBytes(signer: string, self: bigint, peer: bigint): Uint8Array {
+	const msg = `DH-MITM/v1\nsigner=${signer}\nself=0x${self.toString(16)}\npeer=0x${peer.toString(16)}`;
+	return new TextEncoder().encode(msg);
 }
 
 export interface AuthExchangeResult {
 	tampered: boolean; // was a MITM substitution attempted?
-	signedValue: bigint; // the value Alice actually signed (her real A)
-	deliveredValue: bigint; // the value Bob received (Mallory's M2 if tampered)
-	verified: boolean; // did Bob's signature check pass?
+	signerSelf: bigint; // the signer's own share, as bound into the signature
+	signerPeer: bigint; // the peer share the signer bound in (the genuine one)
+	deliveredSelf: bigint; // the signer's share as it reached the verifier
+	verified: boolean; // did the verifier's signature check pass?
 	mitmDetected: boolean; // tampered && !verified — the fail-closed win
-	accepted: boolean; // does Bob proceed with this value? (only if verified)
+	accepted: boolean; // does the verifier proceed? (only if verified)
 }
 
-// Alice signs her ephemeral public value A. Bob verifies it against Alice's
-// authentic public key BEFORE using it. If Mallory swapped A for M2 mid-flight,
-// the signature was made over A, so verifying it against M2 fails — Bob aborts.
-// The invariant: `accepted` can only be true when `verified` is true.
+// Alice signs the transcript (her identity + her share A + Bob's share B) and
+// Bob verifies it against Alice's authentic public key BEFORE using her share.
+// Bob reconstructs the transcript from what HE received. If Mallory swapped
+// Alice's A for M2 in flight, Bob verifies over a transcript with `self=M2`,
+// which Alice never signed — so the check fails and Bob aborts.
+// Invariant: `accepted` can only be true when `verified` is true.
 export async function authenticatedDeliver(
 	alice: IdentityKey,
-	aliceValue: bigint, // A = g^a (what Alice signs)
-	deliveredValue: bigint, // what reaches Bob (A normally, M2 under MITM)
+	aliceShare: bigint, // A = g^a — Alice's genuine share
+	bobShare: bigint, // B = g^b — bound into the signed transcript
+	deliveredAliceShare: bigint, // what reaches Bob (A normally, M2 under MITM)
 ): Promise<AuthExchangeResult> {
-	const signature = await signValue(alice, aliceValue);
-	const tampered = deliveredValue !== aliceValue;
-	const verified = await verifyValue(alice.publicKey, deliveredValue, signature);
+	const signature = await crypto.subtle.sign(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		alice.privateKey,
+		transcriptBytes(alice.name, aliceShare, bobShare),
+	);
+	const tampered = deliveredAliceShare !== aliceShare;
+	const verified = await crypto.subtle.verify(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		alice.publicKey,
+		signature,
+		transcriptBytes(alice.name, deliveredAliceShare, bobShare),
+	);
 	return {
 		tampered,
-		signedValue: aliceValue,
-		deliveredValue,
+		signerSelf: aliceShare,
+		signerPeer: bobShare,
+		deliveredSelf: deliveredAliceShare,
 		verified,
 		mitmDetected: tampered && !verified,
-		// Fail closed: never proceed on an unverified value, no matter what.
+		// Fail closed: never proceed on an unverified transcript, no matter what.
 		accepted: verified,
 	};
 }
