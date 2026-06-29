@@ -339,6 +339,116 @@ export async function authenticatedDeliver(
 	};
 }
 
+// ---------- the payoff: Mallory reads & rewrites a real message --------------
+
+// Holding two keys is abstract until you see Mallory USE them. Here the DH
+// secret is turned into a real AES-GCM key and an actual message is encrypted,
+// intercepted, decrypted, edited, and re-encrypted — all with WebCrypto. This
+// is what "Mallory sits in the middle" means in practice.
+
+function bigintToBytes(n: bigint): Uint8Array {
+	let hex = n.toString(16);
+	if (hex.length % 2) hex = '0' + hex;
+	if (hex.length === 0) hex = '00';
+	const out = new Uint8Array(hex.length / 2);
+	for (let i = 0; i < out.length; i++) {
+		out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+	}
+	return out;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+	const out = new Uint8Array(hex.length / 2);
+	for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+	return out;
+}
+
+// Turn a DH shared secret into a 256-bit AES-GCM key: AES-key = SHA-256(secret).
+// (A production stack uses HKDF with a salt and context; SHA-256 keeps the demo
+// dependency-free while staying real WebCrypto.)
+export async function sessionKeyFromSecret(secret: bigint): Promise<CryptoKey> {
+	const digest = await crypto.subtle.digest('SHA-256', bigintToBytes(secret));
+	return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+export interface Sealed {
+	ivHex: string;
+	ctHex: string;
+}
+
+export async function encryptMessage(key: CryptoKey, plaintext: string): Promise<Sealed> {
+	const iv = crypto.getRandomValues(new Uint8Array(12));
+	const ct = await crypto.subtle.encrypt(
+		{ name: 'AES-GCM', iv },
+		key,
+		new TextEncoder().encode(plaintext),
+	);
+	return { ivHex: bytesToHex(iv), ctHex: bytesToHex(new Uint8Array(ct)) };
+}
+
+// Decrypt; returns null if the GCM auth tag fails (wrong key or tampered bytes)
+// rather than throwing, so the UI can present "can't read this" cleanly.
+export async function decryptMessage(key: CryptoKey, sealed: Sealed): Promise<string | null> {
+	try {
+		const pt = await crypto.subtle.decrypt(
+			{ name: 'AES-GCM', iv: hexToBytes(sealed.ivHex) },
+			key,
+			hexToBytes(sealed.ctHex),
+		);
+		return new TextDecoder().decode(pt);
+	} catch {
+		return null;
+	}
+}
+
+export interface InterceptResult {
+	aliceSealed: Sealed; // Alice's ciphertext under K(Alice–Mallory)
+	malloryReads: string | null; // Mallory decrypts Alice's message
+	forwarded: string; // the (possibly edited) text Mallory re-sends
+	tampered: boolean; // did Mallory change the message?
+	bobSealed: Sealed; // Mallory's ciphertext under K(Bob–Mallory)
+	bobReads: string | null; // what Bob decrypts and believes Alice said
+	bobDirectRead: string | null; // Bob's attempt to read Alice's ORIGINAL bytes
+	keysDiffer: boolean; // aliceKey != bobKey — why Bob can't read Alice directly
+}
+
+// The full relay. aliceKey is the Alice–Mallory key, bobKey the Bob–Mallory key
+// (under a successful MITM these differ; Mallory holds both). Mallory decrypts
+// Alice's message, optionally rewrites it, and re-encrypts toward Bob.
+export async function interceptMessage(
+	aliceKey: bigint,
+	bobKey: bigint,
+	aliceMessage: string,
+	malloryRewrite: string,
+): Promise<InterceptResult> {
+	const kAliceMallory = await sessionKeyFromSecret(aliceKey);
+	const kBobMallory = await sessionKeyFromSecret(bobKey);
+
+	const aliceSealed = await encryptMessage(kAliceMallory, aliceMessage);
+	const malloryReads = await decryptMessage(kAliceMallory, aliceSealed);
+	const forwarded = malloryRewrite;
+	const bobSealed = await encryptMessage(kBobMallory, forwarded);
+	const bobReads = await decryptMessage(kBobMallory, bobSealed);
+	// Without Mallory relaying, Bob would try Alice's original bytes with HIS
+	// key — and fail, because they never shared a key.
+	const bobDirectRead = await decryptMessage(kBobMallory, aliceSealed);
+
+	return {
+		aliceSealed,
+		malloryReads,
+		forwarded,
+		tampered: malloryReads !== null && forwarded !== malloryReads,
+		bobSealed,
+		bobReads,
+		bobDirectRead,
+		keysDiffer: aliceKey !== bobKey,
+	};
+}
+
 // ---------- preset parameters ------------------------------------------------
 
 export interface DhPreset {

@@ -277,6 +277,11 @@
   line-height: 1.55;
 }
 
+.steps li > span {
+  min-width: 0; /* let the 1fr content cell shrink so mono-scroll can scroll */
+  overflow-wrap: anywhere;
+}
+
 .steps li .n {
   display: grid;
   place-items: center;
@@ -574,6 +579,39 @@
   margin: 0;
   color: var(--ink-soft);
   line-height: 1.5;
+}
+
+/* ---- message interception panel ------------------------------------------ */
+
+.intercept {
+  margin-top: 18px;
+  border-color: color-mix(in srgb, var(--mallory) 35%, var(--line));
+}
+
+.panel-copy {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.field--grow {
+  flex: 1 1 15rem;
+}
+
+.field--grow input {
+  width: 100%;
+  font-family: var(--sans);
+}
+
+.reveal-plain {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+
+.reveal-bad {
+  font-weight: 700;
+  color: var(--alarm);
 }
 
 /* ---- copy chip ----------------------------------------------------------- */

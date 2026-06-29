@@ -21,6 +21,7 @@ import {
 	mitm,
 	generateIdentity,
 	authenticatedDeliver,
+	interceptMessage,
 } from './engine.ts';
 import type { DhPreset } from './engine.ts';
 
@@ -360,6 +361,17 @@ function renderMitm(): HTMLElement {
 			<button class="btn btn--ghost" id="m-all" type="button">Show all ⏭</button>
 		</div>
 		<div id="m-out" aria-live="polite"></div>
+
+		<div class="panel-card intercept">
+			<h3>🦹 Now watch Mallory <em>use</em> those two keys</h3>
+			<p class="panel-copy">Different keys aren't just a curiosity — Mallory holds both, so she can read Alice's message and rewrite it before Bob ever sees it. The text below is <b>really</b> AES-GCM encrypted under the keys from the attack above.</p>
+			<div class="controls">
+				<div class="field field--grow"><label for="i-msg">👩 Alice's message</label><input id="i-msg" value="Pay Bob $100"></div>
+				<div class="field field--grow"><label for="i-edit">🦹 Mallory rewrites it to</label><input id="i-edit" value="Pay Mallory $9000"></div>
+				<button class="btn btn--danger" id="i-send" type="button">Send through Mallory ▶</button>
+			</div>
+			<div id="i-out" aria-live="polite"></div>
+		</div>
 	`;
 
 	const STEP_COUNT = 6;
@@ -486,6 +498,50 @@ function renderMitm(): HTMLElement {
 	prevBtn.addEventListener('click', () => { revealStep = Math.max(1, revealStep - 1); paint(); });
 	nextBtn.addEventListener('click', () => { revealStep = Math.min(STEP_COUNT, revealStep + 1); paint(); });
 	allBtn.addEventListener('click', () => { revealStep = STEP_COUNT; paint(); });
+
+	// ---- message interception (real AES-GCM) ----
+	const inMsg = section.querySelector<HTMLInputElement>('#i-msg')!;
+	const inEdit = section.querySelector<HTMLInputElement>('#i-edit')!;
+	const sendBtn = section.querySelector<HTMLButtonElement>('#i-send')!;
+	const iOut = section.querySelector<HTMLDivElement>('#i-out')!;
+
+	async function sendThroughMallory(): Promise<void> {
+		const r = current;
+		sendBtn.disabled = true;
+		iOut.innerHTML = `<p class="muted">Encrypting with AES-GCM under the two keys…</p>`;
+		const res = await interceptMessage(r.aliceKey, r.bobKey, inMsg.value, inEdit.value);
+		sendBtn.disabled = false;
+		const sealedLine = (s: { ivHex: string; ctHex: string }): string =>
+			`<span class="mono-scroll">iv=${s.ivHex.slice(0, 8)}… · ct=${s.ctHex.slice(0, 24)}…</span>`;
+		iOut.innerHTML = `
+			<ol class="steps relay-steps">
+				<li><span class="n">1</span><span><b>👩 Alice → 🦹</b> encrypts under <code>K(Alice·Mallory)</code> and sends: ${sealedLine(res.aliceSealed)}</span></li>
+				<li class="is-cut"><span class="n">2</span><span><b>🦹 Mallory decrypts it</b> (she has that key) and reads: <span class="reveal-plain">“${escapeHtml(res.malloryReads ?? '⟂ unreadable')}”</span></span></li>
+				<li class="is-cut"><span class="n">3</span><span><b>🦹 Mallory forwards</b> ${res.tampered ? '<span class="reveal-bad">a rewritten message</span>' : 'it unchanged'}: <span class="reveal-plain">“${escapeHtml(res.forwarded)}”</span></span></li>
+				<li class="is-cut"><span class="n">4</span><span><b>🦹 → 🧑 Bob</b> re-encrypts under <code>K(Bob·Mallory)</code> and sends: ${sealedLine(res.bobSealed)}</span></li>
+				<li><span class="n">5</span><span><b>🧑 Bob decrypts</b> and believes Alice said: <span class="reveal-plain">“${escapeHtml(res.bobReads ?? '⟂ unreadable')}”</span></span></li>
+			</ol>
+			<div class="key-grid">
+				<div class="key-card ${res.tampered ? 'key-card--alarm' : 'key-card--ok'}">
+					<div class="key-label">🧑 What Bob receives</div>
+					<div class="key-value" style="font-size:1rem">“${escapeHtml(res.bobReads ?? '⟂')}”</div>
+				</div>
+				<div class="key-card ${res.bobDirectRead === null ? 'key-card--alarm' : 'key-card--ok'}">
+					<div class="key-label">🧑 Bob reads Alice's <em>original</em> bytes directly?</div>
+					<div class="key-value" style="font-size:1rem">${res.bobDirectRead === null ? '❌ fails — no shared key' : '“' + escapeHtml(res.bobDirectRead) + '”'}</div>
+				</div>
+			</div>
+			<p class="status ${res.tampered ? 'status--alarm' : 'status--info'}">
+				${
+					res.tampered
+						? `Bob accepted “${escapeHtml(res.bobReads ?? '')}” as Alice's message. Mallory read the original, changed it, and re-sealed it — both halves decrypt cleanly, so nothing looks wrong to either party.`
+						: `Even with no edit, every byte passed through Mallory in the clear. She chose not to change it this time; she didn't have to be honest.`
+				}
+			</p>
+			<p class="muted" style="margin-top:6px">The second card is the tell: Bob <b>cannot</b> decrypt Alice's real ciphertext with his own key (the AES-GCM tag fails). Alice and Bob never shared a key — Mallory's relay is the only reason any message arrives at all. Part 4 makes this swap impossible.</p>
+		`;
+	}
+	sendBtn.addEventListener('click', () => void sendThroughMallory());
 
 	paint(); // initial render shows the full picture; "Run the attack" restarts the walkthrough
 	return section;

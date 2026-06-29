@@ -62,6 +62,14 @@ async function run(label, deviceOpts) {
 	await page.locator('#m-prev').click();
 	assert((await page.locator('#mitm .key-card').count()) === 0, 'stepping back hides key cards');
 
+	// Part 3 payoff — Mallory reads and rewrites a real AES-GCM message.
+	await page.locator('#m-all').click(); // ensure keys are shown
+	await page.locator('#i-send').click();
+	await page.waitForFunction(() => /believes Alice said/.test(document.querySelector('#i-out')?.textContent ?? ''));
+	assert((await page.locator('#i-out').textContent())?.includes('Pay Bob $100'), 'Mallory decrypts Alice’s real message');
+	assert((await page.locator('#i-out').textContent())?.includes('Pay Mallory $9000'), 'Bob receives Mallory’s rewrite');
+	assert((await page.locator('#i-out').textContent())?.includes('no shared key'), 'Bob can’t read Alice’s original directly');
+
 	// Part 4 — authenticated DH (real ECDSA), honest then tampered.
 	await page.locator('#f-clean').click();
 	await page.waitForFunction(() => /verifies/.test(document.querySelector('#f-out')?.textContent ?? ''));

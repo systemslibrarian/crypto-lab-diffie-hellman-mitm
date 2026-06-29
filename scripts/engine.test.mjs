@@ -19,6 +19,10 @@ import {
 	mitm,
 	generateIdentity,
 	authenticatedDeliver,
+	sessionKeyFromSecret,
+	encryptMessage,
+	decryptMessage,
+	interceptMessage,
 	PRESETS,
 	presetById,
 } from '../src/engine.ts';
@@ -185,6 +189,43 @@ test('authenticatedDeliver: transcript binds the PEER share too (anti-misbinding
 		transcriptBytes('Alice', A, otherB),
 	);
 	assert.equal(replayedOk, false); // peer share is bound — replay rejected
+});
+
+test('AES-GCM: round-trips under a key derived from a DH secret', async () => {
+	const key = await sessionKeyFromSecret(1234567n);
+	const sealed = await encryptMessage(key, 'Pay Bob $100');
+	assert.ok(sealed.ivHex.length === 24, '12-byte IV');
+	assert.ok(sealed.ctHex.length > 0);
+	assert.equal(await decryptMessage(key, sealed), 'Pay Bob $100');
+});
+
+test('AES-GCM: a different key cannot read the message (GCM tag fails -> null)', async () => {
+	const k1 = await sessionKeyFromSecret(111n);
+	const k2 = await sessionKeyFromSecret(222n);
+	const sealed = await encryptMessage(k1, 'secret');
+	assert.equal(await decryptMessage(k2, sealed), null);
+});
+
+test('interceptMessage: Mallory reads and rewrites; Bob gets the tampered text', async () => {
+	// Use the real MITM keys for the small preset so the two keys genuinely differ.
+	const r = mitm(2357n, 2n, 1751n, 998n, 333n, 777n);
+	assert.equal(r.aliceAndBobShareKey, false);
+	const res = await interceptMessage(r.aliceKey, r.bobKey, 'Pay Bob $100', 'Pay Mallory $9000');
+	assert.equal(res.malloryReads, 'Pay Bob $100'); // Mallory decrypts Alice's message
+	assert.equal(res.tampered, true);
+	assert.equal(res.bobReads, 'Pay Mallory $9000'); // Bob believes Alice said this
+	assert.equal(res.keysDiffer, true);
+	// Bob cannot read Alice's ORIGINAL ciphertext with his own key:
+	assert.equal(res.bobDirectRead, null);
+});
+
+test('interceptMessage: pass-through (no edit) still relays, Bob reads the original', async () => {
+	const r = mitm(2357n, 2n, 1751n, 998n, 333n, 777n);
+	const res = await interceptMessage(r.aliceKey, r.bobKey, 'hello', 'hello');
+	assert.equal(res.malloryReads, 'hello');
+	assert.equal(res.tampered, false);
+	assert.equal(res.bobReads, 'hello');
+	assert.equal(res.bobDirectRead, null); // still no shared Alice–Bob key
 });
 
 test('PRESETS: every breakable preset uses a real prime; real group is 2048-bit', () => {
