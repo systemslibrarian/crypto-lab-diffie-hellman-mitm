@@ -15,10 +15,10 @@
   --panel: rgba(255, 252, 246, 0.86);
   --panel-strong: rgba(255, 255, 255, 0.94);
 
-  --accent: #b45309; /* amber-700 — readable on light */
+  --accent: #92400e; /* amber-800 — AA even on the 8% accent tint */
   --on-accent: #ffffff; /* text/icon colour on an --accent fill (AA both ways) */
-  --ok: #1d7a52; /* integrity preserved (green) */
-  --alarm: #c4351f; /* broken / MITM succeeded (red) */
+  --ok: #156a46; /* integrity preserved (green) — AA on the 12% tint */
+  --alarm: #ad2d19; /* broken / MITM succeeded (red) — AA on the 12% tint */
   --on-alarm: #ffffff; /* text on an --alarm fill */
   --mallory: #8b2fc9; /* the attacker's colour */
 
@@ -31,13 +31,16 @@
   --input-bg: rgba(255, 250, 242, 0.92);
   --mono-block-bg: #1d1608;
   --mono-block-fg: #f7f0e4;
+  --surface-solid: #f6efe6; /* opaque canvas colour under the gradients */
 
+  color-scheme: light;
   font-family: var(--sans);
   color: var(--ink);
   background:
     radial-gradient(circle at top left, var(--surface-radial-1), transparent 34%),
     radial-gradient(circle at top right, var(--surface-radial-2), transparent 30%),
     var(--surface-bg);
+  background-color: var(--surface-solid);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -45,6 +48,7 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
   --ink-strong: #f6efe2;
   --ink: #ded5c6;
   --ink-soft: #ab9f8c;
@@ -66,6 +70,7 @@
   --input-bg: rgba(24, 20, 12, 0.9);
   --mono-block-bg: #0e0b05;
   --mono-block-fg: #ece3d4;
+  --surface-solid: #15110a;
 }
 
 * {
@@ -88,8 +93,8 @@ body {
   overflow: hidden;
   z-index: 100;
   padding: 12px 18px;
-  background: var(--accent);
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
   border-radius: 0 0 12px 0;
   text-decoration: none;
@@ -132,7 +137,7 @@ button {
   padding: 32px;
   border: 1px solid var(--line);
   border-radius: 26px;
-  background: var(--panel);
+  background-color: var(--panel);
   box-shadow: var(--shadow);
   scroll-margin-top: calc(var(--cl-header-h, 56px) + 64px);
 }
@@ -171,7 +176,7 @@ button {
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: var(--panel-strong);
+  background-color: var(--panel-strong);
 }
 
 .hero-step b {
@@ -189,7 +194,7 @@ button {
   padding: 28px;
   border: 1px solid var(--line);
   border-radius: 26px;
-  background: var(--panel);
+  background-color: var(--panel);
   box-shadow: var(--shadow);
   scroll-margin-top: calc(var(--cl-header-h, 56px) + 64px);
 }
@@ -220,7 +225,7 @@ button {
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: var(--panel-strong);
+  background-color: var(--panel-strong);
 }
 
 .panel-card h3 {
@@ -258,13 +263,23 @@ button {
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--input-bg);
+  background-color: var(--input-bg);
   color: var(--ink-strong);
 }
 
 .field input {
   width: 9rem;
   font-family: var(--mono);
+}
+
+/* Custom-painted select: hide the native arrow and draw a neutral chevron so
+ * both themes render the same control. */
+.field select {
+  appearance: none;
+  padding-right: 1.8rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b949e' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
 }
 
 .field--wide select {
@@ -287,7 +302,7 @@ button {
   min-height: 44px;
   border: 1px solid var(--accent);
   border-radius: 12px;
-  background: var(--accent);
+  background-color: var(--accent);
   color: var(--on-accent);
   font-weight: 700;
   transition: transform 150ms ease, filter 150ms ease;
@@ -299,13 +314,13 @@ button {
 }
 
 .btn--ghost {
-  background: transparent;
+  background-color: transparent;
   color: var(--ink-strong);
   border-color: var(--line);
 }
 
 .btn--danger {
-  background: var(--alarm);
+  background-color: var(--alarm);
   border-color: var(--alarm);
   color: var(--on-alarm);
 }
@@ -324,7 +339,7 @@ button {
   padding: 12px 14px;
   border-radius: 12px;
   overflow-wrap: anywhere;
-  background: var(--mono-block-bg);
+  background-color: var(--mono-block-bg);
   color: var(--mono-block-fg);
   letter-spacing: 0.04em;
   font-size: 0.92rem;
