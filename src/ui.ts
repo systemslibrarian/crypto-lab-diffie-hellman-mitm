@@ -151,16 +151,17 @@ function renderHero(): HTMLElement {
 	section.setAttribute('role', 'banner');
 	const demo = diffieHellman(23n, 5n, 6n, 15n);
 	section.innerHTML = `
-		<p class="eyebrow">Crypto Lab · Key Exchange</p>
-		<h1>Diffie–Hellman &amp; the Man in the Middle</h1>
-		<p class="hero-text">
-			Diffie–Hellman lets two strangers agree on a shared secret over a channel
-			everyone can read. A <b>passive</b> eavesdropper who sees every message still
-			can't compute that secret — that's the discrete-logarithm problem doing its job.
-			But an <b>active</b> attacker who can <em>change</em> messages breaks it completely.
-			This page lets you run the exchange, break it on toy numbers, watch a
-			man-in-the-middle split it in two, and then fix it with a real signature.
-		</p>
+		<header class="cl-hero">
+			<div class="cl-hero-main">
+				<h1 class="cl-hero-title">Diffie–Hellman &amp; MITM</h1>
+				<p class="cl-hero-sub">Key exchange · Man-in-the-middle</p>
+				<p class="cl-hero-desc">Run a live Diffie–Hellman exchange, break it by discrete log on toy primes, then watch an active attacker split it into two keys — and stop her by signing the handshake.</p>
+			</div>
+			<aside class="cl-hero-why" aria-label="Why it matters">
+				<span class="cl-hero-why-label">WHY IT MATTERS</span>
+				<p class="cl-hero-why-text">Unauthenticated DH secures nearly every handshake on the internet, yet an attacker who can alter messages defeats it without breaking any math. That is why TLS, SSH, and Signal authenticate their key exchange — the fix is identity, not bigger numbers.</p>
+			</aside>
+		</header>
 		<div class="hero-steps">
 			<div class="hero-step">
 				<b>1 · Public setup</b>

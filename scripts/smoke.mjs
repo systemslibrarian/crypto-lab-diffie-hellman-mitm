@@ -28,7 +28,8 @@ async function run(label, deviceOpts) {
 	await page.goto(URL, { waitUntil: 'networkidle' });
 
 	// Standardization surface.
-	assert((await page.locator('h1').first().textContent())?.includes('Man in the Middle'), 'h1 present');
+	assert((await page.locator('h1').count()) === 1, 'exactly one h1');
+	assert((await page.locator('h1.cl-hero-title').first().textContent())?.includes('Diffie–Hellman'), 'hero title present');
 	assert((await page.locator('.cl-topbar').count()) === 1, 'exactly one shared header');
 	assert((await page.locator('a.cl-skip-link[href="#app"]').count()) === 1, 'skip link targets #app');
 	const footer = page.locator('footer.scripture-footer');
