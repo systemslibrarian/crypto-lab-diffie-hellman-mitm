@@ -9,7 +9,7 @@ An interactive lesson on the **Diffie–Hellman key exchange** and the **man-in-
 - **Teaching why "secure key exchange" needs authentication** — the demo shows the math is fine and the *protocol* is what fails, which is the point students most often miss.
 - **Explaining the passive-vs-active attacker distinction** — run the discrete-log break (passive, defeated at real sizes) right next to the MITM (active, defeated only by signatures) to make the contrast concrete.
 - **Briefing engineers before they touch a handshake** — make it visceral that raw, unauthenticated (EC)DH must be wrapped in signatures, certificates, or a PAKE.
-- **Showing the cost curve of discrete log** — the break runs in milliseconds on a 16-bit prime and is left disabled on a real 2048-bit group with a √p cost estimate, illustrating why bigger parameters stop the eavesdropper but never the man in the middle.
+- **Showing the cost curve of discrete log** — the break runs in milliseconds on the 5-, 12- and 20-bit presets and is left disabled on the real 2048-bit group, illustrating why bigger parameters stop the eavesdropper but never the man in the middle. The page is explicit that √p is the cost of *baby-step giant-step specifically*: real finite-field DH is bounded by the sub-exponential number field sieve (≈ L_p[1/3]), which is why a 2048-bit group rates ~112-bit security and why Logjam's per-prime precomputation worked.
 - **Do NOT use it as a crypto library** — the primes are deliberately tiny and breakable, and rolling your own key exchange is exactly the mistake the lesson warns against. In production use a vetted implementation of an authenticated protocol (TLS 1.3, the Signal protocol, SSH, Noise).
 
 ## Live Demo

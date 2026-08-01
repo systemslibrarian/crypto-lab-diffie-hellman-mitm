@@ -116,11 +116,11 @@ function renderDifficultyChart(): string {
 		.join('');
 	return `
 		<figure class="chart-figure">
-			<figcaption>Brute-force discrete-log work by modulus size (bar = log₂ of ≈√p steps)</figcaption>
-			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart: discrete-log break cost is about 2^2.5 steps for the 5-bit prime, 2^5.5 for 12-bit, 2^9.5 for 20-bit, and about 2^1023 for the realistic 2048-bit group.">
+			<figcaption>Baby-step giant-step work by modulus size (bar = log₂ of ≈√p steps)</figcaption>
+			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart: baby-step giant-step cost is about 2^2.5 steps for the 5-bit prime, 2^5.5 for 12-bit, 2^9.5 for 20-bit, and about 2^1023 for the realistic 2048-bit group.">
 				${rows}
 			</svg>
-			<p class="muted" style="margin-top:4px">Each extra bit of the modulus roughly doubles the work (cost ≈ √p). The toy bars are slivers next to the 2048-bit group, whose ~2<sup>1023</sup> operations exceed the number of atoms in the observable universe — that gap is the security.</p>
+			<p class="muted" style="margin-top:4px">For <em>this</em> algorithm each extra bit of the modulus roughly doubles the work (cost ≈ √p), which is why the toy bars are slivers next to the 2048-bit group. Read the bars as the cost of the attack this page actually runs, not as the security of real Diffie–Hellman: against a finite-field group like this one the best known attack is the <b>number field sieve</b>, which is sub-exponential rather than √p. See the caveat under the cost table in Part 2.</p>
 		</figure>`;
 }
 
@@ -292,15 +292,17 @@ function renderPassive(): HTMLElement {
 				recovered && res.x !== null
 					? `<p class="status status--alarm">Recovered Alice's secret: a = ${res.x.toString()} — in ${res.steps.toLocaleString()} group operations (${ms} ms).</p>
 					   <p class="muted" style="margin-top:6px">The same algorithm found <code>a</code> with no inside knowledge: it solved <code>gᵃ ≡ A (mod p)</code> directly. Eve now computes the “shared” secret too.</p>`
-					: `<p class="status status--info">This modulus is too large to break here: the attack would need about 2<sup>${Math.round(discreteLogCost(preset.p).approxLog2Steps)}</sup> steps, so it is left disabled. That gap — trivial vs astronomically infeasible — is the entire security of Diffie–Hellman.</p>`
+					: `<p class="status status--info">This modulus is too large for <em>baby-step giant-step</em>: that algorithm would need about 2<sup>${Math.round(discreteLogCost(preset.p).approxLog2Steps)}</sup> steps here, so it is left disabled. Trivial versus hopeless for the same algorithm is the shape of the discrete-log assumption — but 2<sup>${Math.round(discreteLogCost(preset.p).approxLog2Steps)}</sup> is <em>not</em> this group's security level; see below.</p>`
 			}
 			<div class="table-scroll">
 				<table class="cost-table">
-					<thead><tr><th>Preset</th><th>Size</th><th>Break cost ≈ √p</th><th>Status</th></tr></thead>
+					<thead><tr><th>Preset</th><th>Size</th><th>BSGS cost ≈ √p</th><th>Status</th></tr></thead>
 					<tbody>${costRows}</tbody>
 				</table>
 			</div>
-			<p class="muted" style="margin-top:10px">Cost scales with the square root of the modulus, so every extra bit roughly doubles the work. A 2048-bit group puts it past the reach of every computer that will ever exist — while the exchange itself stays a few multiplications.</p>
+			<p class="muted" style="margin-top:10px">√p is the honest cost of <em>this</em> algorithm: every extra bit of the modulus roughly doubles baby-step giant-step's work, while the exchange itself stays a few multiplications.</p>
+			<p class="muted" style="margin-top:8px"><b>Do not generalize that curve to real Diffie–Hellman.</b> Baby-step giant-step is a generic algorithm that ignores the structure of Z_p*. The best known attack on a finite-field group is the <b>number field sieve</b>, which exploits that structure and is <em>sub-exponential</em> — roughly L_p[1/3], not √p. That is why NIST SP 800-57 rates a 2048-bit finite-field group at about <b>112 bits</b> of security rather than 2<sup>1023</sup>, and why finite-field DH needs 2048-bit primes to match an elliptic curve of only ~256 bits, where no index-calculus attack is known.</p>
+			<p class="muted" style="margin-top:8px">This is exactly the attack behind <a href="https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf" target="_blank" rel="noopener">Logjam</a>. Most of the sieve's work depends only on the prime, not on the specific public value, so it can be precomputed once per prime: a week of computation against a single widely-shared 512-bit export group reduced each subsequent discrete log in it to about a minute. A √p mental model says reusing a prime is free. It is not.</p>
 		`;
 	}
 
@@ -680,7 +682,7 @@ function renderReferences(): HTMLElement {
 		{ cite: 'RFC 3526 — MODP Diffie–Hellman groups (incl. the 2048-bit group 14 used here)', href: 'https://www.rfc-editor.org/rfc/rfc3526', note: 'Source of the realistic modulus in this demo.' },
 		{ cite: 'RFC 8446 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc8446', note: 'Authenticated, ephemeral (EC)DH as deployed.' },
 		{ cite: 'RFC 7748 — Elliptic Curves for Security (X25519)', href: 'https://www.rfc-editor.org/rfc/rfc7748', note: 'The modern ECDH most handshakes actually use.' },
-		{ cite: 'Adrian et al., “Imperfect Forward Secrecy: How Diffie–Hellman Fails in Practice” (Logjam), CCS 2015', href: 'https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf', note: 'What weak/shared DH parameters cost in the real world.' },
+		{ cite: 'Adrian et al., “Imperfect Forward Secrecy: How Diffie–Hellman Fails in Practice” (Logjam), CCS 2015', href: 'https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf', note: 'The number-field-sieve precomputation attack — why real finite-field DH security is L_p[1/3], not √p, and why reused primes are dangerous.' },
 		{ cite: 'Menezes, van Oorschot & Vanstone, Handbook of Applied Cryptography, §3.6 (baby-step giant-step) & §8.4', href: 'https://cacr.uwaterloo.ca/hac/', note: 'The discrete-log algorithm and DH worked examples used here.' },
 		{ cite: 'FIPS 186-5 — Digital Signature Standard (ECDSA)', href: 'https://csrc.nist.gov/pubs/fips/186-5/final', note: 'The P-256 ECDSA the demo signs with via WebCrypto.' },
 	];
@@ -694,7 +696,8 @@ function renderReferences(): HTMLElement {
 		{ term: 'Identity misbinding / UKS', def: 'Attacks where a signature valid in one session is replayed into another; defeated by binding both shares + identities into the signed transcript.' },
 		{ term: 'PAKE', def: 'Password-Authenticated Key Exchange — authenticates DH from a shared password instead of a certificate (e.g. OPAQUE).' },
 		{ term: 'Forward secrecy', def: 'Compromising a long-term key later does not expose past sessions, because the ephemeral exponents are gone.' },
-		{ term: 'Baby-step giant-step', def: 'A √p time/memory discrete-log algorithm — the “Break it” attack in Part 2.' },
+		{ term: 'Baby-step giant-step', def: 'A √p time/memory discrete-log algorithm — the “Break it” attack in Part 2. It is generic: it works in any group and ignores the structure of Z_p*.' },
+		{ term: 'Number field sieve (NFS)', def: 'The best known discrete-log attack on finite-field groups. Sub-exponential (≈ L_p[1/3]) rather than √p, and most of its work is a per-prime precomputation — so it, not BSGS, sets the security level of real finite-field DH and is what Logjam exploited.' },
 	];
 	section.innerHTML = `
 		<p class="section-kicker">Part 6 · References &amp; glossary</p>
