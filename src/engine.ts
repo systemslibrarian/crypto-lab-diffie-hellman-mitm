@@ -176,19 +176,30 @@ export function babyStepGiantStep(
 export interface DlogCost {
 	bits: number; // size of the modulus in bits
 	sqrtSteps: bigint; // ~sqrt(order): the BSGS work factor
-	approxLog2Steps: number; // log2 of that, for human-scale comparison
+	approxLog2Steps: number; // log2 of sqrtSteps, for human-scale comparison
 	feasibleHere: boolean; // can we run it under the step cap?
+}
+
+// log2 of a BigInt, accurate to double precision for values far beyond 2^53.
+// Used so the "≈ 2^N steps" figures the UI prints are derived from the same
+// sqrtSteps the cost table shows, rather than from a separate estimate that can
+// drift away from it (2^1023 vs 2^1024 for the 2048-bit group).
+export function log2Bigint(n: bigint): number {
+	if (n <= 0n) return 0;
+	const bits = n.toString(2).length;
+	if (bits <= 53) return Math.log2(Number(n));
+	const shift = BigInt(bits - 53);
+	return Math.log2(Number(n >> shift)) + (bits - 53);
 }
 
 export function discreteLogCost(p: bigint): DlogCost {
 	const order = p - 1n;
 	const sqrtSteps = isqrt(order) + 1n;
 	const bits = p.toString(2).length;
-	const approxLog2Steps = bits > 1 ? (bits - 1) / 2 : 0;
 	return {
 		bits,
 		sqrtSteps,
-		approxLog2Steps,
+		approxLog2Steps: log2Bigint(sqrtSteps),
 		feasibleHere: sqrtSteps <= BigInt(DLOG_STEP_CAP),
 	};
 }
@@ -506,7 +517,7 @@ export const PRESETS: DhPreset[] = [
 		label: 'Realistic — 2048-bit (RFC 3526 group 14)',
 		p: MODP_2048,
 		g: 2n,
-		note: 'A real production DH modulus. The exchange still computes instantly; the brute-force break needs ~2^1023 steps and is left disabled.',
+		note: 'A real production DH modulus. The exchange still computes instantly; the brute-force break needs ~2^1024 steps and is left disabled.',
 		breakable: false,
 	},
 ];

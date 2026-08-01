@@ -103,21 +103,28 @@ function renderDifficultyChart(): string {
 	const maxWork = Math.max(...data.map((d) => d.approxLog2Steps));
 	const W = 680, rowH = 46, barH = 22, x0 = 150, barFull = 470;
 	const H = data.length * rowH + 16;
+	const workLabel = (n: number): string => (n >= 1000 ? `≈ 2^${Math.round(n)}` : `≈ 2^${n.toFixed(1)}`);
 	const rows = data
 		.map((d, i) => {
 			const y = 12 + i * rowH;
 			const len = Math.max(2, (d.approxLog2Steps / maxWork) * barFull);
-			const work = d.approxLog2Steps >= 1000 ? `≈ 2^${Math.round(d.approxLog2Steps)}` : `≈ 2^${d.approxLog2Steps.toFixed(1)}`;
+			const work = workLabel(d.approxLog2Steps);
 			return `
 				<text class="chart-label" x="${x0 - 12}" y="${y + barH / 2}" text-anchor="end" dominant-baseline="middle">${escapeHtml(d.label)} · ${d.bits}-bit</text>
 				<rect class="chart-bar ${d.feasibleHere ? 'chart-bar--toy' : 'chart-bar--real'}" x="${x0}" y="${y}" width="${len.toFixed(1)}" height="${barH}" rx="5"></rect>
 				<text class="chart-value" x="${x0 + len + 8}" y="${y + barH / 2}" dominant-baseline="middle">${work} steps</text>`;
 		})
 		.join('');
+	// Describe the chart from the same numbers the bars are drawn from, so the
+	// screen-reader text can never disagree with what is rendered.
+	const altText =
+		'Bar chart of baby-step giant-step cost by modulus size: ' +
+		data.map((d) => `${d.bits}-bit, ${workLabel(d.approxLog2Steps).replace('≈ 2^', 'about 2 to the ')} steps`).join('; ') +
+		'.';
 	return `
 		<figure class="chart-figure">
 			<figcaption>Baby-step giant-step work by modulus size (bar = log₂ of ≈√p steps)</figcaption>
-			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart: baby-step giant-step cost is about 2^2.5 steps for the 5-bit prime, 2^5.5 for 12-bit, 2^9.5 for 20-bit, and about 2^1023 for the realistic 2048-bit group.">
+			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(altText)}">
 				${rows}
 			</svg>
 			<p class="muted" style="margin-top:4px">For <em>this</em> algorithm each extra bit of the modulus roughly doubles the work (cost ≈ √p), which is why the toy bars are slivers next to the 2048-bit group. Read the bars as the cost of the attack this page actually runs, not as the security of real Diffie–Hellman: against a finite-field group like this one the best known attack is the <b>number field sieve</b>, which is sub-exponential rather than √p. See the caveat under the cost table in Part 2.</p>
@@ -239,10 +246,11 @@ function renderPassive(): HTMLElement {
 
 	function syncPresetUI(): void {
 		toy.innerHTML = toyBanner(escapeHtml(preset.note));
+		const cost = discreteLogCost(preset.p);
 		breakBtn.disabled = !preset.breakable;
 		breakBtn.title = preset.breakable
 			? 'Recover Alice’s secret by discrete log'
-			: 'Disabled: at 2048 bits this would need ~2¹⁰²³ steps';
+			: `Disabled: at ${cost.bits} bits this would need ~2^${Math.round(cost.approxLog2Steps)} steps`;
 	}
 
 	function runExchange(): void {
@@ -277,7 +285,16 @@ function renderPassive(): HTMLElement {
 		const t0 = performance.now();
 		const res = babyStepGiantStep(preset.g, A, preset.p, preset.p - 1n);
 		const ms = (performance.now() - t0).toFixed(1);
-		const recovered = res.x !== null && modPow(preset.g, res.x, preset.p) === A;
+		// Two separate checks, both run before anything is claimed:
+		//   (1) the returned x really satisfies g^x ≡ A — the attack succeeded;
+		//   (2) that x is the very exponent Alice typed in. (1) does not imply
+		//       (2): if g were not a primitive root, several exponents map to A
+		//       and BSGS returns whichever it meets first. Every shipped preset
+		//       uses a primitive root so (2) holds, but we verify rather than
+		//       assume it, and say "an exponent" instead of "Alice's secret"
+		//       if it ever does not.
+		const solves = res.x !== null && modPow(preset.g, res.x, preset.p) === A;
+		const isAlicesExponent = solves && res.x === a;
 		const costRows = PRESETS.map((pr) => {
 			const c = discreteLogCost(pr.p);
 			const work = c.feasibleHere
@@ -289,9 +306,13 @@ function renderPassive(): HTMLElement {
 		out.innerHTML = `
 			<h3>Discrete-log attack — baby-step giant-step</h3>
 			${
-				recovered && res.x !== null
-					? `<p class="status status--alarm">Recovered Alice's secret: a = ${res.x.toString()} — in ${res.steps.toLocaleString()} group operations (${ms} ms).</p>
-					   <p class="muted" style="margin-top:6px">The same algorithm found <code>a</code> with no inside knowledge: it solved <code>gᵃ ≡ A (mod p)</code> directly. Eve now computes the “shared” secret too.</p>`
+				solves && res.x !== null
+					? `<p class="status status--alarm">${
+							isAlicesExponent
+								? `Recovered Alice's secret: a = ${res.x.toString()}`
+								: `Recovered an exponent that opens the exchange: x = ${res.x.toString()} — Alice used a = ${a.toString()}, but both satisfy gˣ ≡ A, so both yield her key`
+						} — in ${res.steps.toLocaleString()} group operations (${ms} ms).</p>
+					   <p class="muted" style="margin-top:6px">The algorithm found it with no inside knowledge: it solved <code>gˣ ≡ A (mod p)</code> directly, and this page re-computed <code>gˣ mod p</code> and compared it against <code>A</code>${isAlicesExponent ? ' and against the exponent Alice actually typed' : ''} before printing that line. Eve now computes the “shared” secret too.</p>`
 					: `<p class="status status--info">This modulus is too large for <em>baby-step giant-step</em>: that algorithm would need about 2<sup>${Math.round(discreteLogCost(preset.p).approxLog2Steps)}</sup> steps here, so it is left disabled. Trivial versus hopeless for the same algorithm is the shape of the discrete-log assumption — but 2<sup>${Math.round(discreteLogCost(preset.p).approxLog2Steps)}</sup> is <em>not</em> this group's security level; see below.</p>`
 			}
 			<div class="table-scroll">
@@ -541,7 +562,11 @@ function renderMitm(): HTMLElement {
 						: `Even with no edit, every byte passed through Mallory in the clear. She chose not to change it this time; she didn't have to be honest.`
 				}
 			</p>
-			<p class="muted" style="margin-top:6px">The second card is the tell: Bob <b>cannot</b> decrypt Alice's real ciphertext with his own key (the AES-GCM tag fails). Alice and Bob never shared a key — Mallory's relay is the only reason any message arrives at all. Part 4 makes this swap impossible.</p>
+			<p class="muted" style="margin-top:6px">${
+				res.bobDirectRead === null
+					? `The second card is the tell: Bob <b>cannot</b> decrypt Alice's real ciphertext with his own key — the AES-GCM tag check just failed, live. Alice and Bob never shared a key; Mallory's relay is the only reason any message arrives at all. Part 4 makes this swap impossible.`
+					: `Careful — the second card shows Bob <em>did</em> read Alice's original bytes. With these exponents Mallory's two keys collided (<code>K(Alice·Mallory) = K(Bob·Mallory)</code>${res.keysDiffer ? '' : ', so the split never happened'}), which is an artefact of the toy modulus, not the attack. Change m₁ or m₂ in the panel above and re-send to see the real behaviour: two different keys and a failing tag.`
+			}</p>
 		`;
 	}
 	sendBtn.addEventListener('click', () => void sendThroughMallory());
@@ -596,7 +621,7 @@ function renderCompare(): HTMLElement {
 		<h3 style="margin-top:24px">How real protocols authenticate DH</h3>
 		<dl class="kv">
 			<dt>TLS 1.3</dt><dd class="muted" style="font-family:var(--sans)">The server signs the handshake transcript (which includes its ephemeral key share) with its certificate key; the client verifies against the cert chain. SIGMA-style "sign-and-MAC".</dd>
-			<dt>Signal (X3DH)</dt><dd class="muted" style="font-family:var(--sans)">Identity keys sign the signed-prekey; the long-term identity binds every ephemeral DH so a swapped prekey is detected.</dd>
+			<dt>Signal (X3DH)</dt><dd class="muted" style="font-family:var(--sans)">Bob's identity key signs his <em>signed</em> prekey — <code>Sig(IK_B, Encode(SPK_B))</code> — so a swapped SPK fails to verify. The one-time prekeys are deliberately left unsigned; what binds the session to both identities is that the identity keys are themselves DH inputs (<code>DH(IK_A, SPK_B)</code> and <code>DH(EK_A, IK_B)</code>), not a signature over every ephemeral.</dd>
 			<dt>SSH</dt><dd class="muted" style="font-family:var(--sans)">The server signs the exchange hash with its host key; the famous "host key fingerprint" prompt is you authenticating that key out of band.</dd>
 		</dl>
 		<div class="related">
