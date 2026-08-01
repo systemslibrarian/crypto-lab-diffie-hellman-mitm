@@ -12,6 +12,17 @@
   --ink: #33281a;
   --ink-soft: #5c5040;
   --line: rgba(40, 30, 12, 0.14);
+  /* Light-theme control boundary (WCAG 2.1 SC 1.4.11). `.field input` and
+     `.field select` are filled with --input-bg, which composites to within
+     1.1:1 of the --panel / --panel-strong they sit in, so the border is the
+     only thing delineating the control. --line composites to about #e1dcd4
+     there — 1.32:1 at best, 1.31:1 at worst. #87817a is that same warm taupe
+     darkened, and clears 3:1 against every stop of the --surface-bg gradient
+     and every panel over it: 3.85:1 on --panel-strong (~#ffffff), 3.70:1 on
+     --panel, 3.65:1 on the #fff8ee gradient stop, 3.38:1 on the #f6efe6 stop
+     (--surface-solid, the worst case). --line is left unchanged for decorative
+     rules — panel outlines, dividers, table rules, ghost buttons. */
+  --border-strong: #87817a;
   --panel: rgba(255, 252, 246, 0.86);
   --panel-strong: rgba(255, 255, 255, 0.94);
 
@@ -53,6 +64,13 @@
   --ink: #ded5c6;
   --ink-soft: #ab9f8c;
   --line: rgba(220, 205, 175, 0.14);
+  /* Dark-theme control boundary (WCAG 2.1 SC 1.4.11) — same reasoning as light.
+     --line composites to about #3a3428 on a panel — 1.32:1. #7a7161 keeps the
+     warm taupe and clears 3:1 against every stop of the dark --surface-bg
+     gradient and everything layered over it: 3.91:1 on the #15110a stop,
+     3.66:1 on the #1d1810 stop, 3.56:1 on composited --panel, 3.40:1 under the
+     top-left amber radial, 3.32:1 on composited --panel-strong (worst case). */
+  --border-strong: #7a7161;
   --panel: rgba(32, 27, 18, 0.88);
   --panel-strong: rgba(40, 34, 22, 0.94);
 
@@ -274,7 +292,8 @@ button {
   font: inherit;
   padding: 10px 12px;
   min-height: 44px;
-  border: 1px solid var(--line);
+  /* Load-bearing control boundary — see --border-strong (WCAG 2.1 SC 1.4.11). */
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   background-color: var(--input-bg);
   color: var(--ink-strong);
