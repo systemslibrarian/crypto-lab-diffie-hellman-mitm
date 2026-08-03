@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve('axe-core'), 'utf8');
 
-const URL = 'http://localhost:4173/crypto-lab-diffie-hellman-mitm/';
+const URL = 'http://localhost:4700/crypto-lab-diffie-hellman-mitm/';
 
 async function audit(label, viewport, theme) {
 	console.log(`\n=== axe: ${label} (${theme}) ===`);

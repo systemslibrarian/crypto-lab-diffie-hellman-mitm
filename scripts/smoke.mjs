@@ -1,8 +1,8 @@
 // Headless smoke test — desktop + mobile viewports, real interactions.
-// Run after `npm run preview` is serving on http://localhost:4173.
+// Run after `npm run preview` is serving on http://localhost:4700.
 import { chromium, devices } from 'playwright';
 
-const URL = 'http://localhost:4173/crypto-lab-diffie-hellman-mitm/';
+const URL = 'http://localhost:4700/crypto-lab-diffie-hellman-mitm/';
 
 function assert(cond, msg) {
 	if (!cond) {

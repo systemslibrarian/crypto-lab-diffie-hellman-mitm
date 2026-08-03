@@ -34,10 +34,10 @@ jobs:
 
       - name: Boot preview server
         run: |
-          npx vite preview --port 4173 --strictPort &
+          npx vite preview --port 4700 --strictPort &
           echo $! > preview.pid
           for i in $(seq 1 30); do
-            if curl -fs http://localhost:4173/crypto-lab-diffie-hellman-mitm/ -o /dev/null; then
+            if curl -fs http://localhost:4700/crypto-lab-diffie-hellman-mitm/ -o /dev/null; then
               echo "Preview ready"; exit 0
             fi
             sleep 1
