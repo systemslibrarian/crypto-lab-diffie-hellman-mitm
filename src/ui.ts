@@ -79,6 +79,26 @@ function wireCopyButtons(root: HTMLElement): void {
 	});
 }
 
+// A rendered verdict is a statement ABOUT the inputs it was computed from
+// ("Recovered Alice's secret: a = 6", "Attack succeeded: Alice's key ≠ Bob's
+// key"). The moment those inputs change it is no longer a statement about
+// anything on screen, so it must stop presenting itself as the current result.
+// We keep the old panel (it is still the last real run) but lead with a notice
+// naming the control that recomputes it.
+function markStale(panel: HTMLElement, action: string): void {
+	if (panel.dataset.stale === 'true') return;
+	if (!panel.textContent?.trim()) return;
+	panel.dataset.stale = 'true';
+	panel.insertAdjacentHTML(
+		'afterbegin',
+		`<p class="status status--info" data-stale-note>Inputs changed — the result below was computed from the previous values. Press <b>${escapeHtml(action)}</b> to recompute.</p>`,
+	);
+}
+
+function markFresh(panel: HTMLElement): void {
+	delete panel.dataset.stale;
+}
+
 function presetOptions(selected: string): string {
 	return PRESETS.map(
 		(p) => `<option value="${p.id}"${p.id === selected ? ' selected' : ''}>${escapeHtml(p.label)}</option>`,
@@ -277,6 +297,7 @@ function renderPassive(): HTMLElement {
 			</p>
 			<p class="muted" style="margin-top:6px">Eve has p, g, A and B — and no efficient way to turn them into that secret. Press “Break it” to see why “efficient” is doing the work in that sentence.</p>
 		`;
+		markFresh(out);
 	}
 
 	function breakIt(): void {
@@ -325,7 +346,15 @@ function renderPassive(): HTMLElement {
 			<p class="muted" style="margin-top:8px"><b>Do not generalize that curve to real Diffie–Hellman.</b> Baby-step giant-step is a generic algorithm that ignores the structure of Z_p*. The best known attack on a finite-field group is the <b>number field sieve</b>, which exploits that structure and is <em>sub-exponential</em> — roughly L_p[1/3], not √p. That is why NIST SP 800-57 rates a 2048-bit finite-field group at about <b>112 bits</b> of security rather than 2<sup>1023</sup>, and why finite-field DH needs 2048-bit primes to match an elliptic curve of only ~256 bits, where no index-calculus attack is known.</p>
 			<p class="muted" style="margin-top:8px">This is exactly the attack behind <a href="https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf" target="_blank" rel="noopener">Logjam</a>. Most of the sieve's work depends only on the prime, not on the specific public value, so it can be precomputed once per prime: a week of computation against a single widely-shared 512-bit export group reduced each subsequent discrete log in it to about a minute. A √p mental model says reusing a prime is free. It is not.</p>
 		`;
+		markFresh(out);
 	}
+
+	// Typing a new exponent invalidates the panel: "Recovered Alice's secret:
+	// a = 6" is a claim about the value that WAS in this box. Flag it instead of
+	// letting it stand as the current answer.
+	const invalidate = (): void => markStale(out, 'Run exchange');
+	inA.addEventListener('input', invalidate);
+	inB.addEventListener('input', invalidate);
 
 	selPreset.addEventListener('change', () => {
 		preset = presetById(selPreset.value);
@@ -493,6 +522,7 @@ function renderMitm(): HTMLElement {
 		stepLabel.textContent = `Step ${revealStep} of ${STEP_COUNT}`;
 		prevBtn.disabled = revealStep <= 1;
 		nextBtn.disabled = revealStep >= STEP_COUNT;
+		markFresh(out);
 	}
 
 	function run(): void {
@@ -506,6 +536,12 @@ function renderMitm(): HTMLElement {
 		inM2.value = m2.toString();
 		current = mitm(preset.p, preset.g, a, b, m1, m2);
 		revealStep = 1; // start the walkthrough from the top
+		// The relay below was encrypted under the PREVIOUS run's two keys. Those
+		// keys no longer exist anywhere on the page, so its verdict ("Bob cannot
+		// read Alice's bytes" / "the two keys collided") can flatly contradict
+		// the wire diagram we are about to repaint. Retire it with the run that
+		// produced it.
+		resetIntercept();
 		paint();
 	}
 
@@ -523,18 +559,38 @@ function renderMitm(): HTMLElement {
 	nextBtn.addEventListener('click', () => { revealStep = Math.min(STEP_COUNT, revealStep + 1); paint(); });
 	allBtn.addEventListener('click', () => { revealStep = STEP_COUNT; paint(); });
 
+	// Editing an exponent invalidates BOTH panels: the wire diagram's public
+	// values and the relay's ciphertexts were computed from the old numbers.
+	const invalidate = (): void => {
+		markStale(out, 'Run the attack');
+		markStale(iOut, 'Send through Mallory ▶');
+	};
+	[inA, inB, inM1, inM2].forEach((input) => input.addEventListener('input', invalidate));
+
 	// ---- message interception (real AES-GCM) ----
 	const inMsg = section.querySelector<HTMLInputElement>('#i-msg')!;
 	const inEdit = section.querySelector<HTMLInputElement>('#i-edit')!;
 	const sendBtn = section.querySelector<HTMLButtonElement>('#i-send')!;
 	const iOut = section.querySelector<HTMLDivElement>('#i-out')!;
 
+	function resetIntercept(): void {
+		iOut.innerHTML =
+			'<p class="muted">Press <b>Send through Mallory ▶</b> to relay a real AES-GCM message under the two keys from this run.</p>';
+		markFresh(iOut);
+	}
+
 	async function sendThroughMallory(): Promise<void> {
 		const r = current;
 		sendBtn.disabled = true;
 		iOut.innerHTML = `<p class="muted">Encrypting with AES-GCM under the two keys…</p>`;
-		const res = await interceptMessage(r.aliceKey, r.bobKey, inMsg.value, inEdit.value);
-		sendBtn.disabled = false;
+		let res;
+		try {
+			res = await interceptMessage(r.aliceKey, r.bobKey, inMsg.value, inEdit.value);
+		} finally {
+			// Never leave the control dead: a rejected WebCrypto call must not
+			// cost the learner the button.
+			sendBtn.disabled = false;
+		}
 		const sealedLine = (s: { ivHex: string; ctHex: string }): string =>
 			`<span class="mono-scroll">iv=${s.ivHex.slice(0, 8)}… · ct=${s.ctHex.slice(0, 24)}…</span>`;
 		iOut.innerHTML = `
@@ -568,10 +624,16 @@ function renderMitm(): HTMLElement {
 					: `Careful — the second card shows Bob <em>did</em> read Alice's original bytes. With these exponents Mallory's two keys collided (<code>K(Alice·Mallory) = K(Bob·Mallory)</code>${res.keysDiffer ? '' : ', so the split never happened'}), which is an artefact of the toy modulus, not the attack. Change m₁ or m₂ in the panel above and re-send to see the real behaviour: two different keys and a failing tag.`
 			}</p>
 		`;
+		markFresh(iOut);
 	}
 	sendBtn.addEventListener('click', () => void sendThroughMallory());
+	// Retyping the message or the rewrite invalidates the transcript below it.
+	const invalidateRelay = (): void => markStale(iOut, 'Send through Mallory ▶');
+	inMsg.addEventListener('input', invalidateRelay);
+	inEdit.addEventListener('input', invalidateRelay);
 
 	paint(); // initial render shows the full picture; "Run the attack" restarts the walkthrough
+	resetIntercept();
 	return section;
 }
 

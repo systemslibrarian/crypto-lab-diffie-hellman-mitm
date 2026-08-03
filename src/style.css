@@ -102,6 +102,18 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* The UA stylesheet's `[hidden] { display: none }` is author-beatable: ANY
+   author declaration setting a display on the same element wins outright,
+   regardless of specificity. Nearly every layout class here does exactly that
+   (.wire, .party, .kv, .key-grid, .controls, .field, .steps and .steps li,
+   .stepper, .compare, .hero-steps, .related, .glossary, .ref-list, …), so a
+   panel shipping the `hidden` attribute would render anyway and every
+   `el.hidden = true` against it would be a silent no-op. This makes the
+   attribute mean what it says. */
+[hidden] {
+  display: none !important;
+}
+
 .skip-link {
   position: absolute;
   left: -10000px;
