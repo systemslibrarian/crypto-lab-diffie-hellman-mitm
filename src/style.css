@@ -10,7 +10,7 @@
 :root {
   --ink-strong: #1a1206;
   --ink: #33281a;
-  --ink-soft: #5c5040;
+  --ink-soft: #453c30;
   --line: rgba(40, 30, 12, 0.14);
   /* Light-theme control boundary (WCAG 2.1 SC 1.4.11). `.field input` and
      `.field select` are filled with --input-bg, which composites to within
