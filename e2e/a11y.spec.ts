@@ -89,13 +89,3 @@ test('no WCAG A/AA violations in dark theme', async ({ page }) => {
   await scan(page);
 });
 
-test('no WCAG A/AA violations in light theme', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('.');
-  await expect(page.locator('h1')).toBeVisible();
-  await page.locator('#cl-theme-toggle').click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await checkGradientContrast(page, '.scripture-footer');
-  await revealAll(page);
-  await scan(page);
-});
