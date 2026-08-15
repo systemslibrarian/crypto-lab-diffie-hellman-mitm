@@ -24,6 +24,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The engine suite (scripts/engine.test.mjs, 21 tests): authenticated
+      # delivery failing closed on a tampered share, transcript binding
+      # against misbinding, AES-GCM round-trip and tag rejection, Mallory's
+      # intercept/rewrite path, and the preset primes. Deploy previously ran
+      # only test:a11y, so a build where the MITM detection no longer
+      # detected anything could ship as long as the page passed axe.
+      - name: Engine unit tests
+        run: npm test
       - run: npm run build
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
