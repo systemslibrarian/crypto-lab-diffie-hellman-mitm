@@ -767,7 +767,7 @@ function renderReferences(): HTMLElement {
 		{ cite: 'Diffie & Hellman, “New Directions in Cryptography,” IEEE Trans. Information Theory, 1976', href: 'https://ee.stanford.edu/~hellman/publications/24.pdf', note: 'The original key-exchange paper.' },
 		{ cite: 'Krawczyk, “SIGMA: the SIGn-and-MAc Approach to Authenticated Diffie–Hellman,” CRYPTO 2003', href: 'https://webee.technion.ac.il/~hugo/sigma-pdf.pdf', note: 'Why you sign the transcript and MAC it — the basis of TLS 1.3 and IKE authentication.' },
 		{ cite: 'RFC 3526 — MODP Diffie–Hellman groups (incl. the 2048-bit group 14 used here)', href: 'https://www.rfc-editor.org/rfc/rfc3526', note: 'Source of the realistic modulus in this demo.' },
-		{ cite: 'RFC 8446 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc8446', note: 'Authenticated, ephemeral (EC)DH as deployed.' },
+		{ cite: 'RFC 9846 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc9846', note: 'Authenticated, ephemeral (EC)DH as deployed.' },
 		{ cite: 'RFC 7748 — Elliptic Curves for Security (X25519)', href: 'https://www.rfc-editor.org/rfc/rfc7748', note: 'The modern ECDH most handshakes actually use.' },
 		{ cite: 'Adrian et al., “Imperfect Forward Secrecy: How Diffie–Hellman Fails in Practice” (Logjam), CCS 2015', href: 'https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf', note: 'The number-field-sieve precomputation attack — why real finite-field DH security is L_p[1/3], not √p, and why reused primes are dangerous.' },
 		{ cite: 'Menezes, van Oorschot & Vanstone, Handbook of Applied Cryptography, §3.6 (baby-step giant-step) & §8.4', href: 'https://cacr.uwaterloo.ca/hac/', note: 'The discrete-log algorithm and DH worked examples used here.' },
