@@ -408,7 +408,7 @@ function renderMitm(): HTMLElement {
 		</div>
 		<div id="m-toy">${toyBanner('Mallory needs no secret-breaking and no big computation — just the ability to alter messages. That is what makes the active attack so much stronger than eavesdropping.')}</div>
 		<div class="stepper" id="m-stepper" role="group" aria-label="Attack walkthrough controls">
-			<button class="btn btn--ghost" id="m-prev" type="button" aria-label="Previous step">◀ Prev</button>
+			<button class="btn btn--ghost" id="m-prev" type="button" aria-label="Prev step">◀ Prev</button>
 			<span class="stepper-label" id="m-steplabel" aria-live="polite">Step 1 of 6</span>
 			<button class="btn btn--ghost" id="m-next" type="button" aria-label="Next step">Next ▶</button>
 			<button class="btn btn--ghost" id="m-all" type="button">Show all ⏭</button>
