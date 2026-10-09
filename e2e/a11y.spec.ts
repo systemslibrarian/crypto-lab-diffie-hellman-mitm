@@ -89,3 +89,16 @@ test('no WCAG A/AA violations in dark theme', async ({ page }) => {
   await scan(page);
 });
 
+
+// A separate name assertion catches a visible-label override even when an
+// axe release changes the rule's WCAG tag assignment.
+for (const theme of ['dark', 'light'] as const) {
+  for (const width of [1280, 390, 360]) {
+    test(`brand accessible name includes visible text at ${width}px in ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.addInitScript(t => localStorage.setItem('theme', t), theme);
+      await page.goto('.');
+      await expect(page.locator('.cl-brand')).toHaveAccessibleName(/CL CRYPTO LAB/);
+    });
+  }
+}
