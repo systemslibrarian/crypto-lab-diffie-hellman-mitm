@@ -99,6 +99,7 @@ for (const theme of ['dark', 'light'] as const) {
       await page.addInitScript(t => localStorage.setItem('theme', t), theme);
       await page.goto('.');
       await expect(page.locator('.cl-brand')).toHaveAccessibleName(/CL CRYPTO LAB/);
+      await expect(page.locator('#m-prev')).toHaveAccessibleName(/\bPrev\b/i);
     });
   }
 }
