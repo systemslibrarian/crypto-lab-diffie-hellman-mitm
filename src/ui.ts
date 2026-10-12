@@ -147,7 +147,7 @@ function renderDifficultyChart(): string {
 			<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(altText)}">
 				${rows}
 			</svg>
-			<p class="muted" style="margin-top:4px">For <em>this</em> algorithm each extra bit of the modulus roughly doubles the work (cost ≈ √p), which is why the toy bars are slivers next to the 2048-bit group. Read the bars as the cost of the attack this page actually runs, not as the security of real Diffie–Hellman: against a finite-field group like this one the best known attack is the <b>number field sieve</b>, which is sub-exponential rather than √p. See the caveat under the cost table in Part 2.</p>
+			<p class="muted" style="margin-top:4px">For <em>this</em> algorithm each extra two bits of the modulus roughly double the work (one extra bit multiplies it by about √2; cost ≈ √p), which is why the toy bars are slivers next to the 2048-bit group. Read the bars as the cost of the attack this page actually runs, not as the security of real Diffie–Hellman: against a finite-field group like this one the best known attack is the <b>number field sieve</b>, which is sub-exponential rather than √p. See the caveat under the cost table in Part 2.</p>
 		</figure>`;
 }
 
@@ -342,7 +342,7 @@ function renderPassive(): HTMLElement {
 					<tbody>${costRows}</tbody>
 				</table>
 			</div>
-			<p class="muted" style="margin-top:10px">√p is the honest cost of <em>this</em> algorithm: every extra bit of the modulus roughly doubles baby-step giant-step's work, while the exchange itself stays a few multiplications.</p>
+			<p class="muted" style="margin-top:10px">√p is the honest cost of <em>this</em> algorithm: every extra two bits of the modulus roughly double baby-step giant-step's work (one extra bit multiplies the work by about √2), while the exchange itself stays a few multiplications.</p>
 			<p class="muted" style="margin-top:8px"><b>Do not generalize that curve to real Diffie–Hellman.</b> Baby-step giant-step is a generic algorithm that ignores the structure of Z_p*. The best known attack on a finite-field group is the <b>number field sieve</b>, which exploits that structure and is <em>sub-exponential</em> — roughly L_p[1/3], not √p. That is why NIST SP 800-57 rates a 2048-bit finite-field group at about <b>112 bits</b> of security rather than 2<sup>1023</sup>, and why finite-field DH needs 2048-bit primes to match an elliptic curve of only ~256 bits, where no index-calculus attack is known.</p>
 			<p class="muted" style="margin-top:8px">This is exactly the attack behind <a href="https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf" target="_blank" rel="noopener">Logjam</a>. Most of the sieve's work depends only on the prime, not on the specific public value, so it can be precomputed once per prime: a week of computation against a single widely-shared 512-bit export group reduced each subsequent discrete log in it to about a minute. A √p mental model says reusing a prime is free. It is not.</p>
 		`;
@@ -408,7 +408,7 @@ function renderMitm(): HTMLElement {
 		</div>
 		<div id="m-toy">${toyBanner('Mallory needs no secret-breaking and no big computation — just the ability to alter messages. That is what makes the active attack so much stronger than eavesdropping.')}</div>
 		<div class="stepper" id="m-stepper" role="group" aria-label="Attack walkthrough controls">
-			<button class="btn btn--ghost" id="m-prev" type="button" aria-label="Previous step">◀ Prev</button>
+			<button class="btn btn--ghost" id="m-prev" type="button" aria-label="Prev step">◀ Prev</button>
 			<span class="stepper-label" id="m-steplabel" aria-live="polite">Step 1 of 6</span>
 			<button class="btn btn--ghost" id="m-next" type="button" aria-label="Next step">Next ▶</button>
 			<button class="btn btn--ghost" id="m-all" type="button">Show all ⏭</button>
