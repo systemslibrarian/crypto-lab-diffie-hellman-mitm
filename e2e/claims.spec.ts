@@ -217,6 +217,32 @@ test('the hero worked example and Part 2 default run render the same p=23 number
 
 // ---------------------------------------------------- 2. the passive attack --
 
+test('BSGS scaling prose follows the square-root law on the chart and attack panel', async ({ page }) => {
+  await page.goto('.');
+
+  await stamp(page, '#p-out');
+  await page.locator('#p-break').click();
+  await expect(page.locator('#p-out [data-e2e-sentinel]')).toHaveCount(0);
+  await expect(page.locator('#p-out h3')).toContainText('baby-step giant-step');
+
+  // A square-root attack scales by sqrt(2) when its search space doubles,
+  // and by 2 when that space quadruples. Check both explanatory surfaces:
+  // their old one-bit-doubles claim contradicted their own cost table.
+  for (const prose of [
+    page.locator('.chart-figure > p'),
+    page.locator('#p-out > p').filter({ hasText: '√p is the honest cost' }),
+  ]) {
+    await expect(prose).toContainText(/extra two bits of the modulus roughly double/);
+    await expect(prose).toContainText(/one extra bit multiplies (?:it|the work) by about √2/);
+    await expect(prose).not.toContainText(/extra bit of the modulus roughly doubles/);
+  }
+
+  // The generic attack's cost curve must retain the finite-field distinction.
+  await expect(page.locator('.chart-figure > p')).toContainText('number field sieve');
+  await expect(page.locator('#p-out')).toContainText('sub-exponential');
+  await expect(page.locator('#p-out')).toContainText('112 bits');
+});
+
 test('the discrete-log break recovers the exponent that was typed, and its step count decomposes into the cost table it prints', async ({
   page,
 }) => {
