@@ -241,6 +241,13 @@ test('BSGS scaling prose follows the square-root law on the chart and attack pan
   await expect(page.locator('.chart-figure > p')).toContainText('number field sieve');
   await expect(page.locator('#p-out')).toContainText('sub-exponential');
   await expect(page.locator('#p-out')).toContainText('112 bits');
+
+  // SP 800-57 Part 1 Rev. 5 Table 2 pairs L = 2048 with f = 224-255 (112-bit
+  // strength) and L = 3072 with f = 256-383 (128-bit). The page used to pair
+  // 2048-bit DH with a ~256-bit curve, which is one row off.
+  await expect(page.locator('#p-out')).toContainText('224–255 bits');
+  await expect(page.locator('#p-out')).toContainText(/3072-bit prime/);
+  await expect(page.locator('#p-out')).not.toContainText(/curve of only ~256 bits/);
 });
 
 test('the discrete-log break recovers the exponent that was typed, and its step count decomposes into the cost table it prints', async ({
