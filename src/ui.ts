@@ -770,7 +770,7 @@ function renderReferences(): HTMLElement {
 		{ cite: 'RFC 9846 — TLS 1.3', href: 'https://www.rfc-editor.org/rfc/rfc9846', note: 'Authenticated, ephemeral (EC)DH as deployed.' },
 		{ cite: 'RFC 7748 — Elliptic Curves for Security (X25519)', href: 'https://www.rfc-editor.org/rfc/rfc7748', note: 'The modern ECDH most handshakes actually use.' },
 		{ cite: 'Adrian et al., “Imperfect Forward Secrecy: How Diffie–Hellman Fails in Practice” (Logjam), CCS 2015', href: 'https://weakdh.org/imperfect-forward-secrecy-ccs15.pdf', note: 'The number-field-sieve precomputation attack — why real finite-field DH security is L_p[1/3], not √p, and why reused primes are dangerous.' },
-		{ cite: 'Menezes, van Oorschot & Vanstone, Handbook of Applied Cryptography, §3.6 (baby-step giant-step) & §8.4', href: 'https://cacr.uwaterloo.ca/hac/', note: 'The discrete-log algorithm and DH worked examples used here.' },
+		{ cite: 'Menezes, van Oorschot & Vanstone, Handbook of Applied Cryptography, §3.6 (baby-step giant-step), §12.6.1 (Diffie–Hellman key agreement) & §8.4 (the ElGamal example this demo borrows p = 2357 from)', href: 'https://cacr.uwaterloo.ca/hac/', note: 'The discrete-log algorithm, the protocol itself, and the small worked-example group used here.' },
 		{ cite: 'FIPS 186-5 — Digital Signature Standard (ECDSA)', href: 'https://csrc.nist.gov/pubs/fips/186-5/final', note: 'The P-256 ECDSA the demo signs with via WebCrypto.' },
 	];
 	const glossary: { term: string; def: string }[] = [
