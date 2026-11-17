@@ -82,21 +82,23 @@ jobs:
 
       - name: Boot preview server
         run: |
-          npx vite preview --port 4700 --strictPort &
+          npx vite preview --port 4623 --strictPort &
           echo $! > preview.pid
           for i in $(seq 1 30); do
-            if curl -fs http://localhost:4700/crypto-lab-diffie-hellman-mitm/ -o /dev/null; then
+            if curl -fs http://localhost:4623/crypto-lab-diffie-hellman-mitm/ -o /dev/null; then
               echo "Preview ready"; exit 0
             fi
             sleep 1
           done
           echo "Preview failed to start within 30s"; exit 1
 
+      # The suites start their own preview when these are unset; CI has one
+      # already running, so it points them at it explicitly.
       - name: Smoke test (Playwright, 3 viewports)
-        run: npm run smoke
+        run: SMOKE_URL=http://localhost:4623/crypto-lab-diffie-hellman-mitm/ npm run smoke
 
       - name: Accessibility audit (axe-core, WCAG 2.1 A/AA)
-        run: npm run axe
+        run: AXE_URL=http://localhost:4623/crypto-lab-diffie-hellman-mitm/ npm run axe
 
       - name: Stop preview
         if: always()

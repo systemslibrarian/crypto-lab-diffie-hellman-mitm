@@ -3,11 +3,84 @@
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* Own the server this suite tests.
+ *
+ * This file used to point at a fixed localhost port and assume a preview was
+ * already serving it, without checking whose server answered. A port held by
+ * another project -- or by a sibling lab previewed on the same workstation --
+ * answers the goto, and every assertion after it describes someone else's
+ * page. Port 4623 is this lab's own in the fleet registry
+ * (crypto-lab/tools/playwright-ports.json); it was 4700, which the registry assigns to
+ * crypto-lab-pqxdh-wire.
+ * --strictPort refuses to move, so a collision now fails loudly here instead
+ * of testing the wrong app quietly.
+ *
+ * Set AXE_URL to point this at an already-running server; CI does.
+ */
+const OWN_PORT = 4623;
+const URL = process.env.AXE_URL ?? `http://localhost:${OWN_PORT}/crypto-lab-diffie-hellman-mitm/`;
+let ownServer = null;
+
+async function reachable(u) {
+	try {
+		return (await fetch(u, { redirect: 'follow' })).ok;
+	} catch {
+		return false;
+	}
+}
+
+async function startOwnServer() {
+	if (!existsSync(join(REPO_ROOT, 'dist', 'index.html'))) {
+		const built = spawnSync('npm', ['run', 'build'], { cwd: REPO_ROOT, encoding: 'utf8' });
+		if (built.status !== 0) {
+			console.error('FAIL: could not build before starting the preview server');
+			console.error((built.stdout ?? '') + (built.stderr ?? ''));
+			process.exit(1);
+		}
+	}
+	const child = spawn('npm', ['run', 'preview', '--', '--port', String(OWN_PORT), '--strictPort'], {
+		cwd: REPO_ROOT,
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	let log = '';
+	child.stdout.on('data', (d) => (log += d));
+	child.stderr.on('data', (d) => (log += d));
+	for (let i = 0; i < 60; i++) {
+		if (await reachable(URL)) return child;
+		if (child.exitCode !== null) break;
+		await new Promise((r) => setTimeout(r, 500));
+	}
+	console.error(`FAIL: preview did not come up on port ${OWN_PORT} within 30s.`);
+	console.error('      --strictPort does not move, so this is a port collision or a build fault:');
+	console.error(log.trim() || '      (the server printed nothing)');
+	try {
+		if (child.exitCode === null) process.kill(child.pid);
+	} catch {}
+	process.exit(1);
+}
+
+/* By pid, and only the child this process started -- never by pattern. */
+function stopOwnServer() {
+	if (ownServer?.exitCode === null) {
+		try {
+			process.kill(ownServer.pid);
+		} catch {}
+	}
+}
+
+if (!process.env.AXE_URL) ownServer = await startOwnServer();
+
 
 const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve('axe-core'), 'utf8');
 
-const URL = 'http://localhost:4700/crypto-lab-diffie-hellman-mitm/';
 
 async function audit(label, viewport, theme) {
 	console.log(`\n=== axe: ${label} (${theme}) ===`);
@@ -52,6 +125,8 @@ for (const theme of ['dark', 'light']) {
 	await audit('mobile 390', { width: 390, height: 844 }, theme);
 	await audit('narrow 360', { width: 360, height: 740 }, theme);
 }
+
+stopOwnServer();
 
 if (process.exitCode) console.error('\nAXE: FAIL');
 else console.log('\nAXE: PASS');
