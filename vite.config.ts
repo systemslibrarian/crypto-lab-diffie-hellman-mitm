@@ -8,5 +8,5 @@ export default defineConfig({
   // and a squatter (our preview would be scanned by theirs). It also keeps
   // scripts/smoke.mjs honest: it targets this port and tells you to reach it
   // with `npm run preview`.
-  preview: { port: 4700, strictPort: true },
+  preview: { port: 4623, strictPort: true },
 });
