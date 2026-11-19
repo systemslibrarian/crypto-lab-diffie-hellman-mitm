@@ -1,5 +1,7 @@
 // Headless smoke test — desktop + mobile viewports, real interactions.
-// Run after `npm run preview` is serving on http://localhost:4700.
+// Run after `npm run preview` is serving on http://localhost:4623 -- this
+// lab's port, and what OWN_PORT below already uses. The comment said 4700,
+// which belongs to crypto-lab-pqxdh-wire.
 import { chromium, devices } from 'playwright';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
